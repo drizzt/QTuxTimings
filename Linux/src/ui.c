@@ -15,22 +15,22 @@
 
 static const char *css_data =
     "window { background-color: #0D1117; }\n"
-    ".header-title { color: #E6EDF3; font-size: 16px; font-weight: bold; }\n"
-    ".header-muted { color: #8B949E; font-size: 12px; }\n"
-    ".footer-muted { color: #8B949E; font-size: 11px; }\n"
-    ".section-title { color: #C9D1D9; font-size: 13px; font-weight: bold; }\n"
-    ".label { color: #8B949E; font-size: 12px; min-height: 18px; }\n"
-    ".value-highlight { color: #3FB950; font-size: 12px; min-height: 18px; }\n"
-    ".section-box { background-color: #161B22; border-radius: 6px; padding: 6px; }\n"
+    ".header-title { color: #E6EDF3; font-size: 1.1em; font-weight: bold; }\n"
+    ".header-muted { color: #8B949E; font-size: 0.85em; }\n"
+    ".footer-muted { color: #8B949E; font-size: 0.8em; }\n"
+    ".section-title { color: #C9D1D9; font-size: 0.9em; font-weight: bold; }\n"
+    ".label { color: #8B949E; font-size: 0.85em; min-height: 1.4em; }\n"
+    ".value-highlight { color: #3FB950; font-size: 0.85em; min-height: 1.4em; }\n"
+    ".section-box { background-color: #161B22; border-radius: 6px; padding: 8px; }\n"
     "notebook { background: transparent; }\n"
     "notebook > header { background: transparent; border-bottom: 1px solid #30363D; }\n"
-    "notebook > header > tabs > tab { color: #8B949E; background: transparent; padding: 6px 16px; }\n"
+    "notebook > header > tabs > tab { color: #8B949E; background: transparent; padding: 6px 16px; font-size: 0.9em; }\n"
     "notebook > header > tabs > tab:checked { color: #E6EDF3; border-bottom: 2px solid #3FB950; }\n"
     "notebook > stack { background: transparent; }\n"
-    "dropdown { background-color: #161B22; color: #E6EDF3; }\n"
+    "dropdown { background-color: #161B22; color: #E6EDF3; font-size: 0.9em; }\n"
     "dropdown > button { background-color: #161B22; color: #E6EDF3; border: 1px solid #30363D; }\n"
     "scrolledwindow { background: transparent; }\n"
-    "button { background-color: #21262D; color: #E6EDF3; border: 1px solid #30363D; border-radius: 6px; padding: 4px 12px; }\n"
+    "button { background-color: #21262D; color: #E6EDF3; border: 1px solid #30363D; border-radius: 6px; padding: 4px 12px; font-size: 0.85em; }\n"
     "button:hover { background-color: #30363D; }\n"
     "button:disabled { opacity: 0.4; }\n";
 
@@ -490,11 +490,7 @@ static void refresh_ui(app_widgets_t *w)
     set_label_fmt(w->lbl_stag, "%u", d->stag);
     set_label_fmt(w->lbl_stag_sb, "%u", d->stag_sb);
     set_label_fmt(w->lbl_phy_wrl, "%u", d->phy_wrl);
-    /* PhyRdl: per-channel if available */
-    if (mi >= 0 && mi < d->phy_rdl_channel_count)
-        set_label_fmt(w->lbl_phy_rdl, "%u", d->phy_rdl_per_channel[mi]);
-    else
-        set_label_fmt(w->lbl_phy_rdl, "%u", d->phy_rdl);
+    set_label_fmt(w->lbl_phy_rdl, "%u", d->phy_rdl);
     set_label_fmt(w->lbl_phy_wrd, "%u", d->phy_wrd);
 
     /* Footer mem type */
@@ -838,8 +834,9 @@ static void on_activate(GtkApplication *app, gpointer user_data)
     /* Window */
     w->window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(w->window), "TuxTimings");
-    gtk_window_set_default_size(GTK_WINDOW(w->window), 360, 720);
-    gtk_window_set_resizable(GTK_WINDOW(w->window), FALSE);
+    gtk_window_set_default_size(GTK_WINDOW(w->window), 420, 820);
+    gtk_window_set_resizable(GTK_WINDOW(w->window), TRUE);
+    gtk_widget_set_size_request(GTK_WIDGET(w->window), 380, 720);
 
     /* Window icon: use icon theme name (works when installed to hicolor) */
     gtk_window_set_icon_name(GTK_WINDOW(w->window), "tuxtimings");

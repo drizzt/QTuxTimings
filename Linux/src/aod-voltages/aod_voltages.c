@@ -8,10 +8,15 @@
  *   /sys/kernel/aod_voltages/mem_vddio  — MemVddio (VDD)
  *   /sys/kernel/aod_voltages/mem_vddq   — MemVddq
  *   /sys/kernel/aod_voltages/mem_vpp    — MemVpp
+ *   /sys/kernel/aod_voltages/full_raw   — entire AOD region (binary; read in chunks)
  *
  * Offsets for the named voltages are set via module parameters after
  * identifying them from the scan output:
  *   modprobe aod_voltages off_vddio=N off_vddq=N off_vpp=N
+ *
+ * Scan lists u32 values that look like millivolts. Tune the mV window with:
+ *   modprobe aod_voltages scan_mv_min=400 scan_mv_max=3500
+ * (defaults: 500–3000; widen max for boards with high DRAM voltage mode.)
  */
 
 #include <linux/module.h>
@@ -23,11 +28,12 @@
 #include <linux/io.h>
 #include <linux/memremap.h>
 #include <linux/string.h>
+#include <linux/fs.h>
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("TuxTimings");
 MODULE_DESCRIPTION("AMD AOD memory voltage reader");
-MODULE_VERSION("0.3");
+MODULE_VERSION("0.4");
 
 /*
  * Some vendors/AGESA revisions ship the AOD SSDT under different OEM Table IDs.
@@ -67,10 +73,10 @@ MODULE_VERSION("0.3");
 /*
  * Voltages are stored as unsigned 32-bit integers in millivolts.
  * e.g. 1550 mV = 0x0000060E, 1800 mV = 0x00000708
- * Filter range covers all realistic DDR/CPU rails.
+ * Default filter range for scan; override at runtime with scan_mv_min / scan_mv_max.
  */
-#define MV_MIN   500U
-#define MV_MAX   2100U
+#define MV_SCAN_DEFAULT_MIN  500U
+#define MV_SCAN_DEFAULT_MAX  3000U
 
 /*
  * AML byte patterns for:
@@ -86,6 +92,17 @@ static const u8 aodt_pattern[] = { 0x5B, 0x80, 0x41, 0x4F, 0x44, 0x54, 0x00 };
 
 static void *aod_base;          /* remapped AOD region          */
 static struct kobject *aod_kobj;
+
+/* Scan window (millivolts): which u32 values count as voltage candidates in `scan`. */
+static uint scan_mv_min = MV_SCAN_DEFAULT_MIN;
+static uint scan_mv_max = MV_SCAN_DEFAULT_MAX;
+
+module_param(scan_mv_min, uint, 0644);
+MODULE_PARM_DESC(scan_mv_min,
+    "Minimum mV for sysfs scan (default 500; lower e.g. 300 to experiment)");
+module_param(scan_mv_max, uint, 0644);
+MODULE_PARM_DESC(scan_mv_max,
+    "Maximum mV for sysfs scan (default 3000; raise for exotic OC / BIOS ranges)");
 
 /* Module parameters: byte offsets of each voltage in the AODE region.
  * Defaults are the Granite Ridge ZenStates-Core values (AGESA > 0xB404022).
@@ -132,7 +149,7 @@ static ssize_t scan_show(struct kobject *kobj,
     for (i = SCAN_START; i < SCAN_END - 4; i += 4) {
         u32 mv = read_mv(i);
 
-        if (mv < MV_MIN || mv > MV_MAX)
+        if (mv < scan_mv_min || mv > scan_mv_max)
             continue;
 
         const char *field =
@@ -186,50 +203,34 @@ static ssize_t cpu_vddio_show(struct kobject *k, struct kobj_attribute *a, char 
 { return show_named(k, a, b, off_cpu_vddio); }
 
 /*
- * raw_wcns — hex dump of WCNS field (offset 8876, 512 bytes).
- * Also dumps OUTB (offset 0, 196 bytes) which holds SMI results.
- * Use this to see the actual data format when scan returns nothing.
+ * full_raw — binary read of entire mapped AOD region (supports partial reads / seek).
+ * Example:  hexdump -C /sys/kernel/aod_voltages/full_raw
  */
-static ssize_t raw_wcns_show(struct kobject *kobj,
-                              struct kobj_attribute *attr, char *buf)
+static ssize_t full_raw_read(struct file *filp, struct kobject *kobj,
+                             const struct bin_attribute *attr, char *buf,
+                             loff_t off, size_t count)
 {
-    ssize_t len = 0;
-    int i;
-
     if (!aod_base)
-        return scnprintf(buf, PAGE_SIZE, "error: not mapped\n");
-
-    len += scnprintf(buf + len, PAGE_SIZE - len, "=== OUTB (0x000, 196 bytes) ===\n");
-    for (i = 0; i < 196 && len < PAGE_SIZE - 48; i += 4) {
-        u32 v;
-        memcpy(&v, (u8 *)aod_base + i, 4);
-        if (i % 16 == 0)
-            len += scnprintf(buf + len, PAGE_SIZE - len, "%04X: ", i);
-        len += scnprintf(buf + len, PAGE_SIZE - len, "%08X ", v);
-        if (i % 16 == 12)
-            len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
-    }
-
-    len += scnprintf(buf + len, PAGE_SIZE - len, "\n=== WCNS (0x%04X, 512 bytes) ===\n",
-                     WCNS_OFFSET);
-    for (i = WCNS_OFFSET; i < WCNS_OFFSET + WCNS_SIZE && len < PAGE_SIZE - 48; i += 4) {
-        u32 v;
-        memcpy(&v, (u8 *)aod_base + i, 4);
-        if ((i - WCNS_OFFSET) % 16 == 0)
-            len += scnprintf(buf + len, PAGE_SIZE - len, "%04X: ", i);
-        len += scnprintf(buf + len, PAGE_SIZE - len, "%08X ", v);
-        if ((i - WCNS_OFFSET) % 16 == 12)
-            len += scnprintf(buf + len, PAGE_SIZE - len, "\n");
-    }
-    return len;
+        return -ENODEV;
+    if (off >= AOD_REGION_SIZE)
+        return 0;
+    if (count > AOD_REGION_SIZE - off)
+        count = AOD_REGION_SIZE - off;
+    memcpy(buf, (u8 *)aod_base + off, count);
+    return count;
 }
+
+static struct bin_attribute bin_attr_full_raw = {
+    .attr = { .name = "full_raw", .mode = 0444 },
+    .size = AOD_REGION_SIZE,
+    .read = full_raw_read,
+};
 
 static struct kobj_attribute scan_attr      = __ATTR_RO(scan);
 static struct kobj_attribute vddio_attr     = __ATTR_RO(mem_vddio);
 static struct kobj_attribute vddq_attr      = __ATTR_RO(mem_vddq);
 static struct kobj_attribute vpp_attr       = __ATTR_RO(mem_vpp);
 static struct kobj_attribute cpu_vddio_attr = __ATTR_RO(cpu_vddio);
-static struct kobj_attribute wcns_attr      = __ATTR_RO(raw_wcns);
 
 static struct attribute *aod_attrs[] = {
     &scan_attr.attr,
@@ -237,7 +238,6 @@ static struct attribute *aod_attrs[] = {
     &vddq_attr.attr,
     &vpp_attr.attr,
     &cpu_vddio_attr.attr,
-    &wcns_attr.attr,
     NULL,
 };
 static struct attribute_group aod_attr_group = { .attrs = aod_attrs };
@@ -329,8 +329,15 @@ static int __init aod_voltages_init(void)
         return -ENOMEM;
     }
 
-    pr_info("aod_voltages: ready — offsets vddio=%d vddq=%d vpp=%d\n",
-            off_vddio, off_vddq, off_vpp);
+    if (sysfs_create_bin_file(aod_kobj, &bin_attr_full_raw) != 0) {
+        sysfs_remove_group(aod_kobj, &aod_attr_group);
+        kobject_put(aod_kobj);
+        memunmap(aod_base);
+        return -ENOMEM;
+    }
+
+    pr_info("aod_voltages: ready — offsets vddio=%d vddq=%d vpp=%d scan_mv=%u-%u\n",
+            off_vddio, off_vddq, off_vpp, scan_mv_min, scan_mv_max);
 
     return 0;
 }
@@ -338,6 +345,7 @@ static int __init aod_voltages_init(void)
 static void __exit aod_voltages_exit(void)
 {
     if (aod_kobj) {
+        sysfs_remove_bin_file(aod_kobj, &bin_attr_full_raw);
         sysfs_remove_group(aod_kobj, &aod_attr_group);
         kobject_put(aod_kobj);
     }

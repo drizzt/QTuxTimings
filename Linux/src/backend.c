@@ -26,6 +26,7 @@ static void run_shell(const char *cmd) { int r = system(cmd); (void)r; }
 
 /* ── Cached static data ─────────────────────────────────────────────── */
 static int  s_cached_static = 0;
+static int  s_physical_cores = -1;
 static int  s_loaded_aod_voltages = 0;
 static int  s_loaded_ryzen_smu    = 0;
 static int  s_loaded_tuxbench     = 0;
@@ -88,7 +89,7 @@ static const char *map_codename(int idx)
     case 14: return "Cezanne";
     case 15: return "Milan";
     case 16: return "Dali";
-    case 17: return "Luciene";
+    case 17: return "Lucienne";
     case 18: return "Naples";
     case 19: return "Chagall";
     case 20: return "Raphael";
@@ -810,6 +811,45 @@ static int read_p0_msr_fields(uint64_t *cpuFid_out, uint64_t *cpuDfsId_out)
     return 1;
 }
 
+/* Read physical core count from CPU topology.
+ * Count unique (physical_package_id, core_id) pairs across all logical CPUs.
+ * This correctly handles multi-CCD systems where core_id is per-CCD. */
+static int read_physical_core_count(void)
+{
+    long max_cpu = sysconf(_SC_NPROCESSORS_CONF);
+    if (max_cpu <= 0) max_cpu = 256;
+
+    /* Dedup: key = (pkg_id << 16) | core_id — one entry per physical core */
+    uint32_t seen[256];
+    int nseen = 0;
+
+    for (int cpu = 0; cpu < max_cpu; cpu++) {
+        char path[256];
+        int pkg_id = -1, core_id = -1;
+
+        snprintf(path, sizeof(path),
+                 "/sys/devices/system/cpu/cpu%d/topology/physical_package_id", cpu);
+        FILE *f = fopen(path, "r");
+        if (f) { if (fscanf(f, "%d", &pkg_id) != 1) pkg_id = -1; fclose(f); }
+
+        snprintf(path, sizeof(path),
+                 "/sys/devices/system/cpu/cpu%d/topology/core_id", cpu);
+        f = fopen(path, "r");
+        if (f) { if (fscanf(f, "%d", &core_id) != 1) core_id = -1; fclose(f); }
+
+        if (pkg_id < 0 || core_id < 0) continue;
+
+        uint32_t key = ((uint32_t)pkg_id << 16) | (uint32_t)core_id;
+        int dup = 0;
+        for (int i = 0; i < nseen; i++) {
+            if (seen[i] == key) { dup = 1; break; }
+        }
+        if (!dup && nseen < 256) seen[nseen++] = key;
+    }
+
+    return nseen > 0 ? nseen : -1;
+}
+
 static int read_cpu_family(void)
 {
     FILE *f = fopen("/proc/cpuinfo", "r");
@@ -962,6 +1002,7 @@ void backend_read_summary(system_summary_t *out)
         parse_dmidecode_board();
         parse_dmidecode_memory();
         read_agesa_version();
+        s_physical_cores = read_physical_core_count();
         s_cached_static = 1;
     }
 
@@ -994,7 +1035,7 @@ void backend_read_summary(system_summary_t *out)
     float *pm_floats = NULL;
     int pm_count = 0;
     if (read_pm_table_raw(&pm_floats, &pm_count)) {
-        pm_table_read(pm_ver, pm_floats, pm_count, codename_idx, &out->metrics);
+        pm_table_read(pm_ver, pm_floats, pm_count, s_physical_cores, &out->metrics);
         free(pm_floats);
     }
 

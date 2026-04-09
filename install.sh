@@ -334,15 +334,19 @@ install_aod_voltages() {
         return 0
     fi
 
-    # Already installed?
-    if modprobe aod_voltages 2>/dev/null; then
-        echo "==> aod-voltages module already available and loaded."
-        return 0
-    fi
-
     local AOD_VER
     AOD_VER=$(grep '^PACKAGE_VERSION=' "$AOD_SRC/dkms.conf" | cut -d= -f2 | tr -d '"')
     echo "==> Installing aod-voltages $AOD_VER via DKMS..."
+
+    # Always refresh sources so upgrades (e.g. 0.4 → 0.5) are not skipped when the
+    # old module still loads successfully.
+    rmmod aod_voltages 2>/dev/null || true
+    for old_ver in $(dkms status 2>/dev/null | sed -n 's/^aod-voltages\/\([0-9.]*\).*/\1/p' | sort -u); do
+        [ "$old_ver" = "$AOD_VER" ] && continue
+        dkms remove aod-voltages/"$old_ver" --all 2>/dev/null || true
+        rm -rf "/usr/src/aod-voltages-$old_ver"
+    done
+    dkms remove aod-voltages/"$AOD_VER" --all 2>/dev/null || true
 
     local DKMS_SRC="/usr/src/aod-voltages-$AOD_VER"
     mkdir -p "$DKMS_SRC"

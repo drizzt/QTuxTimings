@@ -101,8 +101,6 @@ typedef struct {
     uint32_t trc_page, mod, mod_pda, mrd, mrd_pda;
     uint32_t stag, stag_sb, cke, xp;
     uint32_t phy_wrd, phy_wrl, phy_rdl;
-    uint32_t phy_rdl_per_channel[MAX_MODULES];
-    int      phy_rdl_channel_count;
     /* RFC */
     uint32_t rfc, rfc2, rfcsb;
     /* Nanoseconds */

@@ -1,37 +1,53 @@
 ## PM table indices summary
 
-This file documents the PM table indices used in `Linux/src/pm_table.c`. Indices are zero-based entries in the SMU PM table float array. Byte offsets (used by Granite Ridge) are divided by 4 to get the float index.
+This file documents the PM table indices used in `Linux/src/pm_table.c`. Indices are zero-based entries in the SMU PM table float array.
 
 ---
 
-### Granite Ridge 
+### Granite Ridge — PM table `0x00620205` (Ryzen 9000, e.g. 9950X, 613 entries)
 
-Uses **byte-offset based** reading (`read_granite_ridge_offsets`), then `read_known_indices` on top. Also the **default fallback** for any PM table version not listed below.
+Named entries (indices match standard Granite Ridge):
 
-| Index | Byte offset | Field |
-| ----- | ----------- | ----- |
-| 58    | 0x0E8       | `vdd_misc` (VMISC rail) |
-| 71    | 0x11C       | `fclk_mhz` (Infinity Fabric clock) |
-| 75    | 0x12C       | `uclk_mhz` (Memory controller clock) |
-| 79    | 0x13C       | `mclk_mhz` (DRAM clock) |
-| 83    | 0x14C       | `vsoc` (SoC voltage) |
-| 259   | 0x40C       | `vddg_iod` (VDDG IOD rail) |
-| 261   | 0x414       | `vddg_ccd` (VDDG CCD rail) |
-| 269   | 0x434       | `vddp` (VDDP rail) |
-| 271   | 0x43C       | `vcore` (Core voltage) |
+| Index | Field |
+| ----- | ----- |
+| 58    | `vdd_misc` (VMISC rail) |
+| 71    | `fclk_mhz` (Infinity Fabric clock) |
+| 75    | `uclk_mhz` (Memory controller clock) |
+| 79    | `mclk_mhz` (DRAM clock) |
+| 83    | `vsoc` (SoC voltage) |
+| 259   | `vddg_iod` (VDDG IOD rail) |
+| 261   | `vddg_ccd` (VDDG CCD rail) |
+| 269   | `vddp` (VDDP rail) |
+| 271   | `vcore` (Core voltage) |
 
-Additional indices read by `read_known_indices` (shared with Granite Ridge path):
+Additional fields:
 
 | Index / Range | Field |
 | ------------- | ----- |
-| 3             | PPT candidate (tried first; fallback list: 1,13,29,5,38) |
+| 3             | PPT (W) |
 | 11            | IOD hotspot temp (°C) |
-| 29            | Socket power candidate (fallback list: 29,1,13,38,5,220,187,42,0) |
+| 220           | Socket power (W) |
 | 275           | `vid` (Aggregate VID) |
-| 309–316       | `core_voltages[0–7]` (Per-core voltages C0–C7) |
-| 317–324       | `core_temps_c[0–7]` (Per-core temps C0–C7, °C) |
-| 325–340       | `core_clocks_ghz[0–15]` (Per-core clocks, GHz; 16 cores max) |
-| 448–449       | `tdie_c` (Die temp; uses first valid, or average) |
+| 297–300       | Tdie (die temp; first valid in range) |
+| 301–316       | Per-core currents (A) |
+| 333–348       | `core_temps_c[0–15]` (Per-core temps, °C) |
+| 349–364       | `core_clocks_ghz[0–15]` (Per-core clocks, GHz) |
+
+---
+
+### Granite Ridge — PM table `0x00620105` (Ryzen 9000 X3D, e.g. 9850X3D, 457 entries)
+
+Same named entries as `0x00620205`. Per-core indices differ:
+
+| Index / Range | Field |
+| ------------- | ----- |
+| 3             | PPT (W) |
+| 11            | IOD hotspot temp (°C) |
+| 220           | Socket power (W) |
+| 275           | `vid` (Aggregate VID) |
+| 301–316       | Per-core currents (A) |
+| 317–324       | `core_temps_c[0–7]` (Per-core temps, °C) |
+| 325–332       | `core_clocks_ghz[0–7]` (Per-core clocks, GHz) |
 
 ---
 
@@ -51,8 +67,8 @@ Additional indices read by `read_known_indices` (shared with Granite Ridge path)
 | 269           | `vddp` (VDDP rail) |
 | 271           | `vcore` (Core voltage) |
 | 275           | `vid` (Aggregate VID) |
-| 301–308       | `core_voltages[0–7]` (Per-core voltages C0–C7) |
-| 309–316       | `core_temps_c[0–7]` (Per-core temps C0–C7, °C) |
+| 301–308       | `core_voltages[0–7]` (Per-core voltages, C0–C7) |
+| 309–316       | `core_temps_c[0–7]` (Per-core temps, C0–C7, °C) |
 | 317–324       | `core_clocks_ghz[0–7]` (Per-core clocks, GHz; 8 cores) |
 
 ### Raphael — PM table `0x00540004` (7000-series, e.g. 7950X/7900X)
@@ -63,8 +79,8 @@ Same as Raphael `0x00540104` **except**:
 | ------------- | ----- |
 | 74            | `uclk_mhz` (Memory controller clock) |
 | 78            | `mclk_mhz` (DRAM clock) |
-| 309–324       | `core_voltages[0–15]` (Per-core voltages C0–C15) |
-| 325–340       | `core_temps_c[0–15]` (Per-core temps C0–C15, °C) |
+| 309–324       | `core_voltages[0–15]` (Per-core voltages, C0–C15) |
+| 325–340       | `core_temps_c[0–15]` (Per-core temps, C0–C15, °C) |
 
 ---
 
@@ -97,23 +113,23 @@ Same as 0x380804 except:
 | 188–203       | `core_voltages[0–15]` (Per-core voltages, 16 cores) |
 | 204–219       | `core_temps_c[0–15]` (Per-core temps, 16 cores, °C) |
 
-### Vermeer — PM table `0x00380904` (5600X 8-core, older BIOS)
+### Vermeer — PM table `0x00380904` (5600X 6-core, older BIOS)
 
 Same named fields as 0x380804 except `vcore` = 40.
 
 | Index / Range | Field |
 | ------------- | ----- |
-| 177–184       | `core_voltages[0–7]` (Per-core voltages C0–C7) |
-| 185–192       | `core_temps_c[0–7]` (Per-core temps C0–C7, °C) |
+| 177–182       | `core_voltages[0–5]` (Per-core voltages C0–C5) |
+| 183–188       | `core_temps_c[0–5]` (Per-core temps C0–C5, °C) |
 
-### Vermeer — PM table `0x00380905` (5600X 8-core, newer BIOS)
+### Vermeer — PM table `0x00380905` (5600X 6-core, newer BIOS)
 
 Same named fields as 0x380904 except `vcore` = 39.
 
 | Index / Range | Field |
 | ------------- | ----- |
-| 180–187       | `core_voltages[0–7]` (Per-core voltages C0–C7) |
-| 188–195       | `core_temps_c[0–7]` (Per-core temps C0–C7, °C) |
+| 180–185       | `core_voltages[0–5]` (Per-core voltages C0–C5) |
+| 186–191       | `core_temps_c[0–5]` (Per-core temps C0–C5, °C) |
 
 ---
 
