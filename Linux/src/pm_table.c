@@ -99,7 +99,7 @@ static const pm_family_map_t RAPHAEL_540104 = {
     },
     .named_count = 9,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
-    .core_voltage_start = 301, .core_temp_start = 309, .core_clock_start = -1, .max_cores = 8
+    .core_voltage_start = 301, .core_temp_start = 309, .core_clock_start = 317, .max_cores = 8
 };
 
 /* Raphael 0x540004 (7950X/7900X 16-core, PM table 0x00540004) */
@@ -111,7 +111,7 @@ static const pm_family_map_t RAPHAEL_540004 = {
     },
     .named_count = 9,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
-    .core_voltage_start = 309, .core_temp_start = 325, .core_clock_start = -1, .max_cores = 16
+    .core_voltage_start = 309, .core_temp_start = 325, .core_clock_start = 341, .max_cores = 16
 };
 
 /* Matisse 0x240903 (3700X/3800X 8-core) */

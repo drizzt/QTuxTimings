@@ -28,8 +28,7 @@ Additional fields:
 | 11            | IOD hotspot temp (°C) |
 | 220           | Socket power (W) |
 | 275           | `vid` (Aggregate VID) |
-| 297–300       | Tdie (die temp; first valid in range) |
-| 301–316       | Per-core currents (A) |
+| 301–316       | `core_voltages[0–15]` (Per-core voltages, C0–C15) |
 | 333–348       | `core_temps_c[0–15]` (Per-core temps, °C) |
 | 349–364       | `core_clocks_ghz[0–15]` (Per-core clocks, GHz) |
 
@@ -45,7 +44,7 @@ Same named entries as `0x00620205`. Per-core indices differ:
 | 11            | IOD hotspot temp (°C) |
 | 220           | Socket power (W) |
 | 275           | `vid` (Aggregate VID) |
-| 301–316       | Per-core currents (A) |
+| 301–308       | `core_voltages[0–7]` (Per-core voltages, C0–C7) |
 | 317–324       | `core_temps_c[0–7]` (Per-core temps, °C) |
 | 325–332       | `core_clocks_ghz[0–7]` (Per-core clocks, GHz) |
 
@@ -81,6 +80,7 @@ Same as Raphael `0x00540104` **except**:
 | 78            | `mclk_mhz` (DRAM clock) |
 | 309–324       | `core_voltages[0–15]` (Per-core voltages, C0–C15) |
 | 325–340       | `core_temps_c[0–15]` (Per-core temps, C0–C15, °C) |
+| 341–356       | `core_clocks_ghz[0–15]` (Per-core clocks, GHz; 16 cores) |
 
 ---
 
