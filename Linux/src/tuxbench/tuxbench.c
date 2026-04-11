@@ -29,6 +29,7 @@
  * device_create so it appears automatically under /dev).
  */
 
+#include <linux/version.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -856,7 +857,12 @@ static int __init tuxbench_init(void)
         goto err_region;
     }
 
-    tb_class = class_create(CLASS_NAME);
+    tb_class =
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+        class_create(THIS_MODULE, CLASS_NAME);
+#else
+        class_create(CLASS_NAME);
+#endif
     if (IS_ERR(tb_class)) {
         ret = PTR_ERR(tb_class);
         pr_err("tuxbench: class_create failed: %d\n", ret);

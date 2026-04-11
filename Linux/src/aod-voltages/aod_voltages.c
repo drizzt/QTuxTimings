@@ -13,6 +13,8 @@
  * Offsets for the named voltages are set via module parameters after
  * identifying them from the scan output:
  *   modprobe aod_voltages off_vddio=N off_vddq=N off_vpp=N
+ * On Family 19h APUs (e.g. Ryzen 8700G Hawk Point) also use:
+ *   modprobe aod_voltages family_variant=hawk_point
  *
  * Scan lists u32 values that look like millivolts. Tune the mV window with:
  *   modprobe aod_voltages scan_mv_min=400 scan_mv_max=3500
@@ -29,11 +31,12 @@
 #include <linux/memremap.h>
 #include <linux/string.h>
 #include <linux/fs.h>
+#include <linux/kernel.h>   /* ARRAY_SIZE */
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("TuxTimings");
 MODULE_DESCRIPTION("AMD AOD memory voltage reader");
-MODULE_VERSION("0.4");
+MODULE_VERSION("0.5");
 
 /*
  * Some vendors/AGESA revisions ship the AOD SSDT under different OEM Table IDs.
@@ -105,12 +108,12 @@ MODULE_PARM_DESC(scan_mv_max,
     "Maximum mV for sysfs scan (default 3000; raise for exotic OC / BIOS ranges)");
 
 /* Module parameters: byte offsets of each voltage in the AODE region.
- * Defaults are the Granite Ridge ZenStates-Core values (AGESA > 0xB404022).
+ * Defaults are family-specific (auto-detected from /proc/cpuinfo at load).
  * Override if scan shows different offsets on your board. */
-static int off_vddio     = 9084;
-static int off_vddq      = 9088;
-static int off_vpp       = 9092;
-static int off_cpu_vddio = 9096;
+static int off_vddio;
+static int off_vddq;
+static int off_vpp;
+static int off_cpu_vddio;
 
 module_param(off_vddio, int, 0644);
 MODULE_PARM_DESC(off_vddio,     "Byte offset of MemVddio (VDD) in AOD region");
@@ -301,8 +304,109 @@ static phys_addr_t find_aod_phys(void)
     return 0;
 }
 
+/* Read CPU family from /proc/cpuinfo (first entry; all cores match on the same socket). */
+static int get_cpu_family(void)
+{
+    struct file *f;
+    char *buf;
+    int family = -1;
+
+    f = filp_open("/proc/cpuinfo", O_RDONLY, 0);
+    if (IS_ERR(f))
+        return -1;
+
+    buf = (char *)__get_free_page(GFP_KERNEL);
+    if (!buf) {
+        filp_close(f, NULL);
+        return -1;
+    }
+
+    while (kernel_read(f, buf, PAGE_SIZE, &f->f_pos) > 0) {
+        char *p, line[128];
+        size_t off = 0;
+        while ((p = strchr(buf + off, '\n')) != NULL) {
+            size_t len = min_t(size_t, p - (buf + off), sizeof(line) - 1);
+            memcpy(line, buf + off, len);
+            line[len] = '\0';
+            if (sscanf(line, "cpu family : %d", &family) == 1)
+                goto done;
+            off = (p - buf) + 1;
+        }
+        if (f->f_pos >= f->f_inode->i_size)
+            break;
+        memmove(buf, buf + off, strlen(buf + off) + 1);
+        f->f_pos -= off;
+    }
+
+done:
+    free_page((unsigned long)buf);
+    filp_close(f, NULL);
+    return family;
+}
+
+/*
+ * AOD offset table indexed by family + variant.
+ * family=0 = any family (wildcard), variant=NULL = any (wildcard).
+ * First match wins — put specific entries before generic ones.
+ */
+/*
+ * AOD offset table keyed by SMU codename (from /sys/kernel/ryzen_smu_drv/codename).
+ * Codename values: 23 = Granite Ridge, 24 = Hawk Point, etc.
+ * Family fallback for older SMU drivers that don't export codename.
+ */
+static const struct {
+    int codename;      /* SMU codename index, or 0 for family-based fallback */
+    int family;        /* CPU family fallback, or 0 for codename-only */
+    int vddio, vddq, vpp, cpu_vddio;
+} aod_offset_table[] = {
+    { 24, 0, 9116, 9120, 9124, 8956 },  /* Hawk Point */
+    { 23, 0, 9084, 9088, 9092, 9096 },  /* Granite Ridge */
+    {  0, 0x1A, 9084, 9088, 9092, 9096 }, /* Zen 5 (fallback) */
+    {  0, 0x19, 9084, 9088, 9092, 9096 }, /* Zen 3/4 (fallback) */
+};
+
+/* Read SMU codename index from sysfs (ryzen_smu driver exposes this).
+ * Returns -1 if unreadable. */
+static int read_smu_codename(void)
+{
+    struct file *f;
+    char buf[16] = {0};
+    loff_t pos = 0;
+
+    f = filp_open("/sys/kernel/ryzen_smu_drv/codename", O_RDONLY, 0);
+    if (IS_ERR(f))
+        return -1;
+    kernel_read(f, buf, sizeof(buf) - 1, &pos);
+    filp_close(f, NULL);
+    return simple_strtol(buf, NULL, 10);
+}
+
+static void apply_default_offsets(int family)
+{
+    if (off_vddio)     /* module param already set — skip auto-detect */
+        return;
+
+    int codename = read_smu_codename();
+
+    for (size_t i = 0; i < ARRAY_SIZE(aod_offset_table); i++) {
+        const typeof(aod_offset_table[0]) *e = &aod_offset_table[i];
+        int match = (e->codename > 0 && e->codename == codename) ||
+                    (e->codename == 0 && e->family > 0 && e->family == family);
+        if (match) {
+            off_vddio = e->vddio;
+            off_vddq  = e->vddq;
+            off_vpp   = e->vpp;
+            off_cpu_vddio = e->cpu_vddio;
+            return;
+        }
+    }
+}
+
 static int __init aod_voltages_init(void)
 {
+    int family = get_cpu_family();
+    apply_default_offsets(family);
+
     phys_addr_t phys = find_aod_phys();
 
     if (!phys) {
@@ -336,8 +440,8 @@ static int __init aod_voltages_init(void)
         return -ENOMEM;
     }
 
-    pr_info("aod_voltages: ready — offsets vddio=%d vddq=%d vpp=%d scan_mv=%u-%u\n",
-            off_vddio, off_vddq, off_vpp, scan_mv_min, scan_mv_max);
+    pr_info("aod_voltages: ready — family=0x%x offsets vddio=%d vddq=%d vpp=%d cpu_vddio=%d scan_mv=%u-%u\n",
+            family, off_vddio, off_vddq, off_vpp, off_cpu_vddio, scan_mv_min, scan_mv_max);
 
     return 0;
 }

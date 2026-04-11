@@ -1,6 +1,6 @@
 CC       = gcc
 PKG      = gtk4
-CFLAGS   = -Wall -Wextra -O2 -march=native $(shell pkg-config --cflags $(PKG)) \
+CFLAGS   = -Wall -Wextra -O2 -march=native -mclflushopt $(shell pkg-config --cflags $(PKG)) \
            -fPIE -fstack-protector-strong -D_FORTIFY_SOURCE=2
 LDFLAGS  = $(shell pkg-config --libs $(PKG)) -pie -lpthread -lgmp
 SRCS     = $(wildcard src/*.c)

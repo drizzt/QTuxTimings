@@ -189,6 +189,10 @@ static void read_ddr4_timings(dram_timings_t *d)
         d->rfc2 = bit_slice(trfc_reg, 21, 11);
     }
 
+    /* Nanosecond conversions (DDR4 path) */
+    d->trefi_ns  = to_nanoseconds(d->refi, mem_freq);
+    d->trfc_ns   = to_nanoseconds(d->rfc, mem_freq);
+    d->trfc2_ns  = to_nanoseconds(d->rfc2, mem_freq);
 }
 
 void dram_read_timings(int codename_index, dram_timings_t *out)

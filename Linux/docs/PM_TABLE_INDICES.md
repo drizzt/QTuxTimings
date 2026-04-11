@@ -213,6 +213,23 @@ Same fields as 0x370003 with shifted indices:
 
 ---
 
+### Hawk Point — PM table `0x4C0009` (Ryzen 8700G, 8-core Phoenix APU)
+
+| Index / Range | Field |
+| ------------- | ----- |
+| 3             | PPT (W) |
+| 28            | `vid` (Aggregate VID) |
+| 38            | Socket power (W) |
+| 89            | `fclk_mhz` (Infinity Fabric clock) |
+| 93            | `uclk_mhz` (Memory controller clock) |
+| 97            | `mclk_mhz` (DRAM clock) |
+| 101           | `vsoc` (SoC voltage) |
+| 477           | `vddp` (VDDP rail) |
+
+Note: Per-core voltage, temperature, and clock indices are not mapped (`core_voltage_start = -1`, etc.).
+
+---
+
 ### Raven Ridge — PM table `0x001E0004` (2500U APU)
 
 | Index / Range | Field |

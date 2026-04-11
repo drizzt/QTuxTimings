@@ -971,6 +971,8 @@ void backend_read_summary(system_summary_t *out)
         run_shell(cmd);
         snprintf(cmd, sizeof(cmd), "%s ryzen_smu 2>/dev/null", mp);
         run_shell(cmd);
+
+        /* Load aod_voltages — kernel module auto-detects offsets via SMU codename */
         if (!file_exists("/sys/kernel/aod_voltages/mem_vddio")) {
             snprintf(cmd, sizeof(cmd), "%s aod_voltages 2>/dev/null", mp);
             run_shell(cmd);
@@ -1141,11 +1143,6 @@ void backend_cleanup(void)
         s_loaded_tuxbench = 0;
         rmmod_module(rm, "tuxbench");
     }
-}
-
-void backend_set_tuxbench_loaded(void)
-{
-    s_loaded_tuxbench = 1;
 }
 
 /* ── Debug dump ─────────────────────────────────────────────────────── */

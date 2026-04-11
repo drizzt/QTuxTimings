@@ -376,7 +376,7 @@ static void refresh_ui(app_widgets_t *w)
 
     /* Header */
     set_label_text(w->lbl_cpu_name, s->cpu.processor_name[0] ? s->cpu.processor_name : s->cpu.name);
-    set_label_fmt(w->lbl_codename, "%s  ·  SMU %s  ·  PM %s",
+    set_label_fmt(w->lbl_codename, "%s  ·  SMU %s  ·  %s",
                   s->cpu.codename, s->cpu.smu_version, s->cpu.pm_table_version);
     set_label_text(w->lbl_board_info, s->board.display_line);
 

@@ -28,7 +28,8 @@ static const pm_family_map_t GRANITE_RIDGE = {
     },
     .named_count = 10,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
-    .core_voltage_start = 309, .core_temp_start = 317, .core_clock_start = 325, .max_cores = 8
+    .core_voltage_start = 309, .core_temp_start = 317, .core_clock_start = 325,
+    .max_cores = 8
 };
 
 /* Vermeer 0x380804 (5900X/5950X 16-core, older BIOS) */
@@ -40,7 +41,8 @@ static const pm_family_map_t VERMEER_380804 = {
     },
     .named_count = 9,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 185, .core_temp_start = 201, .core_clock_start = -1, .max_cores = 16
+    .core_voltage_start = 185, .core_temp_start = 201, .core_clock_start = -1,
+    .max_cores = 16
 };
 
 /* Vermeer 0x380805 (5950X 16-core, newer BIOS) */
@@ -52,7 +54,8 @@ static const pm_family_map_t VERMEER_380805 = {
     },
     .named_count = 9,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 188, .core_temp_start = 204, .core_clock_start = -1, .max_cores = 16
+    .core_voltage_start = 188, .core_temp_start = 204, .core_clock_start = -1,
+    .max_cores = 16
 };
 
 /* Vermeer 0x380904 (5600X 6-core, older BIOS) */
@@ -64,7 +67,8 @@ static const pm_family_map_t VERMEER_380904 = {
     },
     .named_count = 9,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 177, .core_temp_start = 183, .core_clock_start = -1, .max_cores = 6
+    .core_voltage_start = 177, .core_temp_start = 183, .core_clock_start = -1,
+    .max_cores = 6
 };
 
 /* Vermeer 0x380905 (5600X 6-core, newer BIOS) */
@@ -76,7 +80,8 @@ static const pm_family_map_t VERMEER_380905 = {
     },
     .named_count = 9,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 180, .core_temp_start = 186, .core_clock_start = -1, .max_cores = 6
+    .core_voltage_start = 180, .core_temp_start = 186, .core_clock_start = -1,
+    .max_cores = 6
 };
 
 /* Cezanne 0x400005 (5700G APU) */
@@ -87,7 +92,8 @@ static const pm_family_map_t CEZANNE_400005 = {
     },
     .named_count = 7,
     .vid_idx = 28, .ppt_idx = 5, .socket_power_idx = 38,
-    .core_voltage_start = 208, .core_temp_start = 216, .core_clock_start = -1, .max_cores = 8
+    .core_voltage_start = 208, .core_temp_start = 216, .core_clock_start = -1,
+    .max_cores = 8
 };
 
 /* Raphael 0x540104 (7800X3D 8-core, PM table 0x00540104) */
@@ -99,7 +105,8 @@ static const pm_family_map_t RAPHAEL_540104 = {
     },
     .named_count = 9,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
-    .core_voltage_start = 301, .core_temp_start = 309, .core_clock_start = 317, .max_cores = 8
+    .core_voltage_start = 301, .core_temp_start = 309, .core_clock_start = 317,
+    .max_cores = 8
 };
 
 /* Raphael 0x540004 (7950X/7900X 16-core, PM table 0x00540004) */
@@ -111,7 +118,8 @@ static const pm_family_map_t RAPHAEL_540004 = {
     },
     .named_count = 9,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
-    .core_voltage_start = 309, .core_temp_start = 325, .core_clock_start = 341, .max_cores = 16
+    .core_voltage_start = 309, .core_temp_start = 325, .core_clock_start = 341,
+    .max_cores = 16
 };
 
 /* Matisse 0x240903 (3700X/3800X 8-core) */
@@ -122,7 +130,8 @@ static const pm_family_map_t MATISSE_240903 = {
     },
     .named_count = 8,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 155, .core_temp_start = 163, .core_clock_start = -1, .max_cores = 8
+    .core_voltage_start = 155, .core_temp_start = 163, .core_clock_start = -1,
+    .max_cores = 8
 };
 
 /* Matisse 0x240803 (3950X 16-core) */
@@ -133,7 +142,8 @@ static const pm_family_map_t MATISSE_240803 = {
     },
     .named_count = 8,
     .vid_idx = 10, .ppt_idx = 1, .socket_power_idx = 29,
-    .core_voltage_start = 163, .core_temp_start = 179, .core_clock_start = -1, .max_cores = 16
+    .core_voltage_start = 163, .core_temp_start = 179, .core_clock_start = -1,
+    .max_cores = 16
 };
 
 /* Renoir 0x370003 (4800U APU) */
@@ -144,7 +154,8 @@ static const pm_family_map_t RENOIR_370003 = {
     },
     .named_count = 7,
     .vid_idx = 28, .ppt_idx = 5, .socket_power_idx = 38,
-    .core_voltage_start = 200, .core_temp_start = 208, .core_clock_start = -1, .max_cores = 8
+    .core_voltage_start = 200, .core_temp_start = 208, .core_clock_start = -1,
+    .max_cores = 8
 };
 
 /* Renoir 0x370005 (Renoir v2 APU) */
@@ -155,7 +166,8 @@ static const pm_family_map_t RENOIR_370005 = {
     },
     .named_count = 7,
     .vid_idx = 28, .ppt_idx = 5, .socket_power_idx = 38,
-    .core_voltage_start = 207, .core_temp_start = 215, .core_clock_start = -1, .max_cores = 8
+    .core_voltage_start = 207, .core_temp_start = 215, .core_clock_start = -1,
+    .max_cores = 8
 };
 
 /* Granite Ridge 0x620205 (Ryzen 9000, e.g. 9950X) */
@@ -167,7 +179,8 @@ static const pm_family_map_t GRANITE_620205 = {
     },
     .named_count = 10,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 220,
-    .core_voltage_start = 309, .core_temp_start = 333, .core_clock_start = 349, .max_cores = 16
+    .core_voltage_start = 309, .core_temp_start = 333, .core_clock_start = 349,
+    .max_cores = 16
 };
 
 /* Granite Ridge 0x620105 (Ryzen 9000 X3D, e.g. 9850X3D) */
@@ -179,7 +192,8 @@ static const pm_family_map_t GRANITE_620105 = {
     },
     .named_count = 10,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 220,
-    .core_voltage_start = 301, .core_temp_start = 317, .core_clock_start = 325, .max_cores = 8
+    .core_voltage_start = 301, .core_temp_start = 317, .core_clock_start = 325,
+    .max_cores = 8
 };
 
 /* Raven Ridge 0x1E0004 (2500U APU) */
@@ -190,7 +204,20 @@ static const pm_family_map_t RAVEN_1E0004 = {
     },
     .named_count = 7,
     .vid_idx = 57, .ppt_idx = 5, .socket_power_idx = 38,
-    .core_voltage_start = 104, .core_temp_start = 108, .core_clock_start = -1, .max_cores = 4
+    .core_voltage_start = 104, .core_temp_start = 108, .core_clock_start = -1,
+    .max_cores = 4
+};
+
+/* Hawk Point 0x4C0009 (Ryzen 8700G, 8-core Phoenix APU) */
+static const pm_family_map_t HAWK_POINT_4C0009 = {
+    .named = {
+        {89, F_FCLK}, {93, F_UCLK}, {97, F_MCLK},
+        {101, F_VSOC}, {477, F_VDDP}
+    },
+    .named_count = 5,
+    .vid_idx = 28, .ppt_idx = 3, .socket_power_idx = 38,
+    .core_voltage_start = -1, .core_temp_start = -1, .core_clock_start = -1,
+    .max_cores = 8
 };
 
 static const pm_family_map_t *get_family_map(uint32_t version)
@@ -209,6 +236,7 @@ static const pm_family_map_t *get_family_map(uint32_t version)
     case 0x240803: return &MATISSE_240803;
     case 0x370003: return &RENOIR_370003;
     case 0x370005: return &RENOIR_370005;
+    case 0x4C0009: return &HAWK_POINT_4C0009;
     case 0x1E0004: return &RAVEN_1E0004;
     default:       return &GRANITE_RIDGE;
     }
@@ -224,15 +252,15 @@ static void apply_named(const pm_family_map_t *map, const float *t, int count, s
     for (int i = 0; i < map->named_count; i++) {
         float v = safe_get(t, count, map->named[i].index);
         switch (map->named[i].field_offset) {
-        case F_FCLK:        m->fclk_mhz = v; break;
-        case F_UCLK:        m->uclk_mhz = v; break;
-        case F_MCLK:        m->mclk_mhz = v; break;
-        case F_VSOC:        m->vsoc = v; break;
-        case F_VDDP:        m->vddp = v; break;
-        case F_VDDG_IOD:    m->vddg_iod = v; break;
-        case F_VDDG_CCD:    m->vddg_ccd = v; break;
-        case F_VDD_MISC:    m->vdd_misc = v; break;
-        case F_VCORE:       m->vcore = v; break;
+        case F_FCLK:       m->fclk_mhz = v; break;
+        case F_UCLK:       m->uclk_mhz = v; break;
+        case F_MCLK:       m->mclk_mhz = v; break;
+        case F_VSOC:       m->vsoc = v; break;
+        case F_VDDP:       m->vddp = v; break;
+        case F_VDDG_IOD:   m->vddg_iod = v; break;
+        case F_VDDG_CCD:   m->vddg_ccd = v; break;
+        case F_VDD_MISC:   m->vdd_misc = v; break;
+        case F_VCORE:      m->vcore = v; break;
         case F_IOD_HOTSPOT: {
             if (v >= 1.0f && v <= 150.0f) {
                 m->iod_hotspot_c = v;
@@ -296,11 +324,11 @@ void pm_table_read(uint32_t version, const float *table, int count,
             out->core_voltages[i] = table[map->core_voltage_start + i];
     }
 
-    /* VID */
+    /* VID — always read directly from vid_idx (never in named arrays) */
     float vid_v = safe_get(table, count, map->vid_idx);
     if (vid_v > 0) out->vid = vid_v;
 
-    /* PPT */
+    /* PPT — always read directly from ppt_idx */
     float ppt_v = safe_get(table, count, map->ppt_idx);
     if (ppt_v >= 0.5f && ppt_v <= 400.0f) out->ppt_w = ppt_v;
 
