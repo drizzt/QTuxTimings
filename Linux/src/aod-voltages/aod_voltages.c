@@ -361,6 +361,7 @@ static const struct {
 } aod_offset_table[] = {
     { 24, 0, 9116, 9120, 9124, 8956 },  /* Hawk Point */
     { 23, 0, 9084, 9088, 9092, 9096 },  /* Granite Ridge */
+    { 20, 0, 9096, 9100, 9104, 9108 },  /* Raphael */
     {  0, 0x1A, 9084, 9088, 9092, 9096 }, /* Zen 5 (fallback) */
     {  0, 0x19, 9084, 9088, 9092, 9096 }, /* Zen 3/4 (fallback) */
 };

@@ -114,7 +114,7 @@ static const pm_family_map_t RAPHAEL_540004 = {
     .named = {
         {11, F_IOD_HOTSPOT}, {70, F_FCLK}, {74, F_UCLK}, {78, F_MCLK},
         {82, F_VSOC}, {259, F_VDDG_IOD}, {261, F_VDDG_CCD},
-        {269, F_VDDP}, {271, F_VCORE}
+        {268, F_VDDP}, {271, F_VCORE}
     },
     .named_count = 9,
     .vid_idx = 275, .ppt_idx = 3, .socket_power_idx = 29,
@@ -319,9 +319,21 @@ void pm_table_read(uint32_t version, const float *table, int count,
             out->core_temps_c[i] = table[map->core_temp_start + i];
     }
     if (map->core_voltage_start + nc <= count) {
-        out->core_voltages_count = nc;
-        for (int i = 0; i < nc; i++)
-            out->core_voltages[i] = table[map->core_voltage_start + i];
+        int out_idx = 0;
+        // Scan all possible slots, collect up to 'nc' non-zero voltages
+        for (int i = 0; i < map->max_cores; i++) {
+            if (map->core_voltage_start + i >= count) break;
+            float v = table[map->core_voltage_start + i];
+            if (v != 0.0f && out_idx < nc) {
+                out->core_voltages[out_idx++] = v;
+                if (out_idx >= nc) break;
+            }
+        }
+        // Fill the rest with zeroes
+        for (int i = out_idx; i < nc; i++) {
+            out->core_voltages[i] = 0.0f;
+        }
+        out->core_voltages_count = out_idx;
     }
 
     /* VID — always read directly from vid_idx (never in named arrays) */
