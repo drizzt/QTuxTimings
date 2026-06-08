@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <locale.h>
+#include <unistd.h>
 
 /* ── CSS theme (GitHub dark) ────────────────────────────────────────── */
 
@@ -43,6 +44,25 @@ static void load_css(void)
         GTK_STYLE_PROVIDER(provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     g_object_unref(provider);
+}
+
+/* ── HiDPI fix for running elevated via pkexec ──────────────────────────
+ * The app re-execs itself as root (see main.c). As root, GTK cannot read
+ * the user's desktop settings — dconf and the settings portal are per-user
+ * — so on the Wayland backend it falls back to the X server's *scaled*
+ * Xft.dpi (e.g. 192 dpi on a 200% display). But the Wayland compositor
+ * ALSO applies the per-output scale factor, so everything ends up rendered
+ * at double size. On Wayland HiDPI is conveyed solely through the output
+ * scale factor, so the font DPI must be the unscaled default: reset
+ * gtk-xft-dpi to -1 to undo the doubling while keeping the crisp 2x scale.
+ * Only the Wayland backend is affected — on X11 the scaled Xft.dpi is the
+ * legitimate HiDPI mechanism and must be left alone. */
+static void fix_elevated_wayland_dpi(void)
+{
+    if (geteuid() != 0) return;
+    GdkDisplay *display = gdk_display_get_default();
+    if (display && g_strcmp0(G_OBJECT_TYPE_NAME(display), "GdkWaylandDisplay") == 0)
+        g_object_set(gtk_settings_get_default(), "gtk-xft-dpi", -1, NULL);
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────── */
@@ -830,6 +850,9 @@ static void on_activate(GtkApplication *app, gpointer user_data)
     setlocale(LC_NUMERIC, "C");
 
     load_css();
+
+    /* Undo the font-DPI doubling that occurs when elevated on Wayland */
+    fix_elevated_wayland_dpi();
 
     /* Window */
     w->window = gtk_application_window_new(app);

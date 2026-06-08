@@ -53,8 +53,7 @@ static void elevate_if_necessary(int argc, char **argv)
     /* Build argv for pkexec: pkexec <self> --env-VAR=VALUE ... [original args] */
     const char *env_vars[] = {
         "DISPLAY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR", "XAUTHORITY",
-        "DBUS_SESSION_BUS_ADDRESS", "XDG_CONFIG_HOME", "HOME",
-        "AVALONIA_SCREEN_SCALE_FACTORS", NULL
+        "DBUS_SESSION_BUS_ADDRESS", "XDG_CONFIG_HOME", "HOME", NULL
     };
 
     /* Count env args */
