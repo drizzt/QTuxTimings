@@ -1,79 +1,80 @@
-# Maintainer: Death4two <https://github.com/Death4two>
-pkgbase=tuxtimings
-pkgname=('tuxtimings' 'tuxtimings-dkms')
+# Maintainer: drizzt <https://github.com/drizzt>
+pkgbase=qtuxtimings
+pkgname=('qtuxtimings' 'qtuxtimings-dkms')
 pkgver=1.0.5
 pkgrel=8
-pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (GTK4)"
+pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (Qt6)"
 arch=('x86_64')
-url="https://github.com/Death4two/TuxTimings"
+url="https://github.com/drizzt/QTuxTimings"
 license=('GPL3')
-makedepends=('gcc' 'pkgconf')
-source=("$pkgbase-$pkgver.tar.gz::https://github.com/Death4two/TuxTimings/archive/refs/heads/main.tar.gz")
+makedepends=('gcc' 'cmake' 'qt6-base')
+source=("$pkgbase-$pkgver.tar.gz::https://github.com/drizzt/QTuxTimings/archive/refs/heads/main.tar.gz")
 sha256sums=('SKIP')
 
 build() {
-    cd "$srcdir/TuxTimings-main/Linux"
-    # Run clean and build in separate make invocations to avoid
-    # parallel builds (`MAKEFLAGS=-j…`) deleting objects while linking.
-    make clean
-    make all
+    cd "$srcdir/QTuxTimings-main/Linux"
+    rm -rf build
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build
 }
 
-package_tuxtimings() {
-    pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (GTK4)"
-    depends=('gtk4')
+package_qtuxtimings() {
+    pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (Qt6)"
+    # qt6-wayland ships the Wayland QPA platform plugin; the launcher forces
+    # QT_QPA_PLATFORM=wayland on Wayland sessions, so it must be present.
+    depends=('qt6-base' 'qt6-wayland')
     optdepends=(
-        'tuxtimings-dkms: kernel modules for accurate benchmarking and memory voltages'
+        'qtuxtimings-dkms: kernel modules for accurate benchmarking and memory voltages'
         'ryzen_smu-dkms-git: kernel module for reading AMD SMN/PM tables'
         'nct6775-dkms-git: fan readings on boards with Nuvoton Super I/O (NCT6775F through NCT6799D)'
     )
 
-    cd "$srcdir/TuxTimings-main/Linux"
+    cd "$srcdir/QTuxTimings-main/Linux"
 
     # Binary
-    install -Dm755 tuxtimings "$pkgdir/opt/TuxTimings/bin/tuxtimings"
+    install -Dm755 build/qtuxtimings "$pkgdir/opt/QTuxTimings/bin/qtuxtimings"
 
     # Icon
-    install -Dm644 tuxtimings.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/tuxtimings.png"
+    install -Dm644 qtuxtimings.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/qtuxtimings.png"
 
     # Polkit policy
-    install -Dm644 /dev/stdin "$pkgdir/usr/share/polkit-1/actions/com.tuxtimings.policy" << 'EOF'
+    install -Dm644 /dev/stdin "$pkgdir/usr/share/polkit-1/actions/it.belloworld.QTuxTimings.policy" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <action id="com.tuxtimings.run">
-    <description>Run TuxTimings</description>
-    <message>Authentication is required to run TuxTimings</message>
+  <action id="it.belloworld.QTuxTimings.run">
+    <description>Run QTuxTimings</description>
+    <message>Authentication is required to run QTuxTimings</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/opt/TuxTimings/bin/tuxtimings</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/QTuxTimings/bin/qtuxtimings</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>
 EOF
 
     # Desktop file
-    install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/tuxtimings.desktop" << 'DESKTOP'
+    install -Dm644 /dev/stdin "$pkgdir/usr/share/applications/qtuxtimings.desktop" << 'DESKTOP'
 [Desktop Entry]
-Name=TuxTimings
+Name=QTuxTimings
 Comment=AMD Ryzen DRAM timings viewer
-Exec=tuxtimings
-Icon=tuxtimings
+Exec=qtuxtimings
+Icon=qtuxtimings
 Terminal=false
 Type=Application
 Categories=Utility;
 DESKTOP
 
     # Launcher script (handles env forwarding through pkexec)
-    install -Dm755 /dev/stdin "$pkgdir/usr/bin/tuxtimings" << 'LAUNCHER'
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/qtuxtimings" << 'LAUNCHER'
 #!/bin/bash
 if [ "$(id -u)" -eq 0 ]; then
-    exec /opt/TuxTimings/bin/tuxtimings "$@"
+    exec /opt/QTuxTimings/bin/qtuxtimings "$@"
 fi
 
 ENV_ARGS=""
@@ -82,19 +83,19 @@ for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
     eval VAL=\$$VAR
     [ -n "$VAL" ] && ENV_ARGS="$ENV_ARGS --env-$VAR=$VAL"
 done
-[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-GDK_BACKEND=wayland"
+[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-QT_QPA_PLATFORM=wayland"
 
-exec pkexec /opt/TuxTimings/bin/tuxtimings $ENV_ARGS "$@"
+exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
 LAUNCHER
 }
 
-package_tuxtimings-dkms() {
-    pkgdesc="DKMS kernel modules for TuxTimings (aod-voltages, tuxbench)"
+package_qtuxtimings-dkms() {
+    pkgdesc="DKMS kernel modules for QTuxTimings (aod-voltages, tuxbench)"
     depends=('dkms' 'linux-headers')
     optdepends=('clang: required if your kernel was built with Clang (CachyOS, etc)')
-    install=tuxtimings-dkms.install
+    install=qtuxtimings-dkms.install
 
-    cd "$srcdir/TuxTimings-main/Linux"
+    cd "$srcdir/QTuxTimings-main/Linux"
 
     # aod-voltages DKMS module source
     local aod_ver

@@ -1,8 +1,11 @@
 #include "ui.h"
 #include "backend.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
+#include <QApplication>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 #include <locale.h>
 #include <signal.h>
@@ -19,7 +22,7 @@ static void on_signal(int sig)
 static int restore_env(int *argc, char ***argv)
 {
     int new_argc = 0;
-    char **new_argv = malloc(*argc * sizeof(char *));
+    char **new_argv = (char **)malloc(*argc * sizeof(char *));
     if (!new_argv) return -1;
 
     for (int i = 0; i < *argc; i++) {
@@ -63,13 +66,13 @@ static void elevate_if_necessary(int argc, char **argv)
     }
 
     /* +3: pkexec, self, NULL; +argc for original args;
-     * +1 extra for the conditional --env-GDK_BACKEND=wayland entry */
+     * +1 extra for the conditional --env-QT_QPA_PLATFORM=wayland entry */
     int total = 2 + env_count + 1 + (argc - 1) + 1;
-    char **new_argv = malloc(total * sizeof(char *));
+    char **new_argv = (char **)malloc(total * sizeof(char *));
     if (!new_argv) return;
 
     int n = 0;
-    new_argv[n++] = "pkexec";
+    new_argv[n++] = (char *)"pkexec";
 
     /* Get self path */
     char self[4096];
@@ -78,16 +81,18 @@ static void elevate_if_necessary(int argc, char **argv)
     self[len] = '\0';
 
     /* Prefer installed path for polkit policy match */
-    const char *installed = "/opt/TuxTimings/bin/tuxtimings";
+    const char *installed = "/opt/QTuxTimings/bin/qtuxtimings";
     if (access(installed, X_OK) == 0)
         new_argv[n++] = (char *)installed;
     else
         new_argv[n++] = self;
 
-    /* Add env forwarding args */
-    char env_bufs[16][512];
+    /* Add env forwarding args. One buffer per env_vars entry (the trailing
+     * NULL slot doubles as room for the conditional QT_QPA_PLATFORM hint). */
+    static const int env_buf_count = sizeof(env_vars) / sizeof(env_vars[0]);
+    static char env_bufs[env_buf_count][512];
     int ei = 0;
-    for (int i = 0; env_vars[i] && ei < 16; i++) {
+    for (int i = 0; env_vars[i] && ei < env_buf_count; i++) {
         const char *val = getenv(env_vars[i]);
         if (val) {
             snprintf(env_bufs[ei], sizeof(env_bufs[ei]), "--env-%s=%s", env_vars[i], val);
@@ -96,9 +101,9 @@ static void elevate_if_necessary(int argc, char **argv)
         }
     }
 
-    /* If on Wayland, forward that hint */
-    if (getenv("WAYLAND_DISPLAY") && ei < 16) {
-        snprintf(env_bufs[ei], sizeof(env_bufs[ei]), "--env-GDK_BACKEND=wayland");
+    /* If on Wayland, forward that hint so Qt selects the Wayland platform */
+    if (getenv("WAYLAND_DISPLAY") && ei < env_buf_count) {
+        snprintf(env_bufs[ei], sizeof(env_bufs[ei]), "--env-QT_QPA_PLATFORM=wayland");
         new_argv[n++] = env_bufs[ei++];
     }
 
@@ -124,18 +129,25 @@ int main(int argc, char *argv[])
     restore_env(&argc, &argv);
     elevate_if_necessary(argc, argv);
 
-    /* Force C locale for numeric formatting (dots, not commas) */
-    setlocale(LC_NUMERIC, "C");
-
     if (!backend_is_supported()) {
-        fprintf(stderr, "TuxTimings: ryzen_smu driver not found at /sys/kernel/ryzen_smu_drv/\n"
+        fprintf(stderr, "QTuxTimings: ryzen_smu driver not found at /sys/kernel/ryzen_smu_drv/\n"
                         "Please install the ryzen_smu kernel module.\n");
         return 1;
     }
 
-    GtkApplication *app = ui_create(argc, argv);
-    int status = g_application_run(G_APPLICATION(app), argc, argv);
-    g_object_unref(app);
+    QApplication app(argc, argv);
+
+    /* Force C locale for numeric formatting (dots, not commas).
+     * Qt resets the locale during QApplication construction, so set it after. */
+    setlocale(LC_NUMERIC, "C");
+
+    int status;
+    {
+        MainWindow w;
+        w.show();
+        status = app.exec();
+    } /* ~MainWindow joins worker threads before backend_cleanup() unloads
+       * the kernel modules they may still be using. */
     backend_cleanup();
     return status;
 }

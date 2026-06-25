@@ -34,7 +34,7 @@
 #include <linux/kernel.h>   /* ARRAY_SIZE */
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("TuxTimings");
+MODULE_AUTHOR("QTuxTimings");
 MODULE_DESCRIPTION("AMD AOD memory voltage reader");
 MODULE_VERSION("0.5");
 

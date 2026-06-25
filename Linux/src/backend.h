@@ -3,6 +3,10 @@
 
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Returns true if the ryzen_smu driver is loaded and accessible. */
 int backend_is_supported(void);
 
@@ -17,5 +21,9 @@ void backend_cleanup(void);
 /* Returns a malloc'd string with a raw PM table + AOD sysfs debug dump.
  * Caller must free(). Returns NULL on failure. */
 char *backend_read_debug_dump(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

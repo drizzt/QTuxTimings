@@ -1,6 +1,8 @@
-<h1 align="center">TuxTimings</h1>
+<h1 align="center">QTuxTimings</h1>
 
-![TuxTimings](screenshot.png "TuxTimings")
+<p align="center">Qt6 port of <a href="https://github.com/Death4two/TuxTimings">TuxTimings</a> — AMD Ryzen DRAM timings and CPU telemetry viewer.</p>
+
+![QTuxTimings](screenshot.png "QTuxTimings")
 
 ### Supported CPUs
 
@@ -14,29 +16,29 @@ If your CPU family is not listed or shows incomplete readings, you can help by r
 
 ### Prerequisites
 
-- **[ryzen_smu](https://github.com/amkillam/ryzen_smu/)** kernel module — required for all readings. Install it separately; TuxTimings will load/unload it automatically if present.
-- **GTK4 runtime** — needed to run the application  
-  - Arch: `gtk4`  
-  - Debian/Ubuntu: `libgtk-4-1`
+- **[ryzen_smu](https://github.com/amkillam/ryzen_smu/)** kernel module — required for all readings. Install it separately; QTuxTimings will load/unload it automatically if present.
+- **Qt6 runtime** — needed to run the application  
+  - Arch: `qt6-base`  
+  - Debian/Ubuntu: `libqt6widgets6`
 
-> If building manually: also install `gcc`, `make`, `pkg-config`, GTK4 development headers, and GMP headers (Pi benchmark).  
-> - Arch: `gtk4` + `gmp`  
-> - Debian/Ubuntu: `libgtk-4-dev` + `libgmp-dev`
+> If building manually: also install `gcc`, `cmake`, Qt6 development headers, and GMP headers (Pi benchmark).  
+> - Arch: `qt6-base` + `cmake` + `gmp`  
+> - Debian/Ubuntu: `qt6-base-dev` + `cmake` + `libgmp-dev`
 
-> **Note:** TuxTimings automatically loads `ryzen_smu` and `aod_voltages` on startup and unloads them on exit. No manual `modprobe` is needed.
+> **Note:** QTuxTimings automatically loads `ryzen_smu` and `aod_voltages` on startup and unloads them on exit. No manual `modprobe` is needed.
 
 ### Installing
 
 #### Arch Linux / CachyOS (recommended)
 
-Install `ryzen_smu` first, then build and install TuxTimings:
+Install `ryzen_smu` first, then build and install QTuxTimings:
 
 ```bash
 yay -S ryzen_smu-dkms-git
 makepkg -si
 ```
 
-This uses the included PKGBUILD to build and install via pacman. The `aod-voltages` kernel module (for memory voltage readings) is bundled and built automatically via DKMS. Uninstall with `sudo pacman -R tuxtimings`.
+This uses the included PKGBUILD to build and install via pacman. The `aod-voltages` kernel module (for memory voltage readings) is bundled and built automatically via DKMS. Uninstall with `sudo pacman -R qtuxtimings`.
 
 #### Ubuntu / Debian
 
@@ -44,13 +46,13 @@ This uses the included PKGBUILD to build and install via pacman. The `aod-voltag
 sudo apt update
 
 # Runtime deps (needed to run/install the .deb)
-sudo apt install -y libgtk-4-1 libgmp10 policykit-1 dmidecode kmod
+sudo apt install -y libqt6widgets6 libgmp10 policykit-1 dmidecode kmod
 
 # Build deps (only needed if building from source / creating the .deb)
-sudo apt install -y build-essential pkg-config libgtk-4-dev libgmp-dev
+sudo apt install -y build-essential cmake qt6-base-dev libgmp-dev
 
 ./install.sh --deb
-sudo apt install ./tuxtimings_*.deb
+sudo apt install ./qtuxtimings_*.deb
 ```
 
 #### Any Linux (direct install)
@@ -59,7 +61,7 @@ sudo apt install ./tuxtimings_*.deb
 ./install.sh
 ```
 
-Builds from source and installs to `/opt/TuxTimings/` with a launcher at `/usr/bin/tuxtimings`, polkit policy, desktop file, and icon. Root privileges are requested automatically via sudo.
+Builds from source and installs to `/opt/QTuxTimings/` with a launcher at `/usr/bin/qtuxtimings`, polkit policy, desktop file, and icon. Root privileges are requested automatically via sudo.
 
 #### Uninstall (direct install)
 
@@ -90,8 +92,9 @@ For a reproducible/stable build, download the source files from the latest stabl
 ### Building without installing
 
 ```bash
-make -C Linux
-sudo ./Linux/tuxtimings
+cmake -S Linux -B Linux/build -DCMAKE_BUILD_TYPE=Release
+cmake --build Linux/build
+sudo ./Linux/build/qtuxtimings
 ```
 
 ### License
@@ -102,8 +105,9 @@ This project is licensed under the **GNU General Public License v3.0**. See [LIC
 
 - **[ryzen_smu](https://github.com/amkillam/ryzen_smu/)** — Kernel module for reading AMD SMN and PM table; build and load separately at runtime.
 - **[ZenStates-Core](https://github.com/irusanov/ZenStates-Core)** — PM table offsets and timing formulas (reimplemented in our Linux backend; used with permission).
-- **[ZenTimings](https://github.com/nickspacewalker/ZenTimings)** — Windows version; TuxTimings is based on this concept.
-- **[GTK4](https://gtk.org/)** — Native Linux UI toolkit.
+- **[TuxTimings](https://github.com/Death4two/TuxTimings)** — original GTK4 Linux version; QTuxTimings is a Qt6 port of it.
+- **[ZenTimings](https://github.com/nickspacewalker/ZenTimings)** — Windows version; QTuxTimings is based on this concept.
+- **[Qt6](https://www.qt.io/)** — Cross-platform UI toolkit.
 - **[Linux kernel](https://github.com/torvalds/linux)** — SMN/sysfs interface and platform support.
 - **[AMD's public documentation](https://www.amd.com/en/support/tech-docs)** — SMN/PM table and DRAM timing references.
 - **Tux icon** — Tux the penguin originally by Larry Ewing, created with GIMP (`lewing@isc.tamu.edu`), used and/or modified under the terms of the original image permission.

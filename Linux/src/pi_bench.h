@@ -1,6 +1,10 @@
 #ifndef PI_BENCH_H
 #define PI_BENCH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     double time_sec;
     double digits_per_sec;
@@ -14,5 +18,9 @@ typedef struct {
  * Requires: libgmp (-lgmp)
  */
 void pi_bench_run(int n_digits, pi_results_t *out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PI_BENCH_H */

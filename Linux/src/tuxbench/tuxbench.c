@@ -53,7 +53,7 @@
 #include "tuxbench.h"
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("TuxTimings");
+MODULE_AUTHOR("QTuxTimings");
 MODULE_DESCRIPTION("Kernel-mode memory latency and bandwidth benchmark");
 MODULE_VERSION("0.4");
 

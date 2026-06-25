@@ -1,7 +1,10 @@
 # C build artifacts
 **/*.o
 *.a
-tuxtimings
+qtuxtimings
+
+# CMake build directory
+build/
 
 # Kernel module build artifacts
 *.ko

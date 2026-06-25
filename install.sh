@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build and install TuxTimings (C/GTK4) natively.
-# Requires: gcc, pkg-config, gtk4 development headers
+# Build and install QTuxTimings (C++/Qt6) natively.
+# Requires: gcc, cmake, qt6 development headers
 #
 # Usage:
 #   ./install.sh              Build and install to system
@@ -12,14 +12,14 @@ set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LINUX_DIR="$ROOT_DIR/Linux"
-INSTALL_DIR="/opt/TuxTimings"
+INSTALL_DIR="/opt/QTuxTimings"
 MAKE=/usr/bin/make
 
 REAL_USER="${SUDO_USER:-$(whoami)}"
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 
-if [ ! -f "$LINUX_DIR/Makefile" ]; then
-    echo "ERROR: Linux/Makefile not found. Run this script from the repo root."
+if [ ! -f "$LINUX_DIR/CMakeLists.txt" ]; then
+    echo "ERROR: Linux/CMakeLists.txt not found. Run this script from the repo root."
     exit 1
 fi
 
@@ -34,21 +34,21 @@ if [ "${1:-}" = "--uninstall" ]; then
     if [ "$(id -u)" -ne 0 ]; then
         exec sudo "$0" --uninstall
     fi
-    echo "==> Uninstalling TuxTimings..."
+    echo "==> Uninstalling QTuxTimings..."
 
     rm -rf "$INSTALL_DIR"
-    rm -f /usr/bin/tuxtimings
-    rm -f /usr/share/polkit-1/actions/com.tuxtimings.policy
-    rm -f /usr/share/applications/tuxtimings.desktop
-    rm -f /usr/share/icons/hicolor/256x256/apps/tuxtimings.png
-    gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+    rm -f /usr/bin/qtuxtimings
+    rm -f /usr/share/polkit-1/actions/it.belloworld.QTuxTimings.policy
+    rm -f /usr/share/applications/qtuxtimings.desktop
+    rm -f /usr/share/icons/hicolor/256x256/apps/qtuxtimings.png
+    xdg-icon-resource forceupdate --theme hicolor 2>/dev/null || true
 
     # Desktop shortcut
     DESKTOP_DIR="${REAL_HOME}/Desktop"
     [ ! -d "$DESKTOP_DIR" ] && \
         DESKTOP_DIR=$(su "$REAL_USER" -c 'xdg-user-dir DESKTOP 2>/dev/null' || true)
     if [ -d "$DESKTOP_DIR" ]; then
-        rm -f "$DESKTOP_DIR/tuxtimings.desktop"
+        rm -f "$DESKTOP_DIR/qtuxtimings.desktop"
     fi
 
 
@@ -84,7 +84,7 @@ if [ "${1:-}" = "--uninstall" ]; then
         fi
     fi
 
-    echo "==> TuxTimings has been uninstalled."
+    echo "==> QTuxTimings has been uninstalled."
     exit 0
 fi
 
@@ -92,11 +92,13 @@ fi
 if [ "${1:-}" = "--deb" ]; then
     echo "==> Building .deb package..."
 
-    # Build binary first
+    # Build binary first. Drop any stale build/ so a cache from a different
+    # source path (e.g. the tree was moved) can't abort the configure step.
+    rm -rf "$LINUX_DIR/build"
     if [ "$(id -u)" -eq 0 ]; then
-        su "$REAL_USER" -c "'$MAKE' -C '$LINUX_DIR' clean all"
+        su "$REAL_USER" -c "cmake -S '$LINUX_DIR' -B '$LINUX_DIR/build' -DCMAKE_BUILD_TYPE=Release && cmake --build '$LINUX_DIR/build'"
     else
-        "$MAKE" -C "$LINUX_DIR" clean all
+        cmake -S "$LINUX_DIR" -B "$LINUX_DIR/build" -DCMAKE_BUILD_TYPE=Release && cmake --build "$LINUX_DIR/build"
     fi
 
     # Prefer a version derived from git tags when available, otherwise fall back
@@ -114,10 +116,10 @@ if [ "${1:-}" = "--deb" ]; then
         ver="${ver//_/.}"      # safety
         PKG_VERSION="${ver//.g/+g}"  # "…+g<sha>" instead of "…g<sha>"
     fi
-    DEB_ROOT="$LINUX_DIR/deb-build/tuxtimings_${PKG_VERSION}_amd64"
+    DEB_ROOT="$LINUX_DIR/deb-build/qtuxtimings_${PKG_VERSION}_amd64"
     rm -rf "$LINUX_DIR/deb-build"
     mkdir -p "$DEB_ROOT/DEBIAN"
-    mkdir -p "$DEB_ROOT/opt/TuxTimings/bin"
+    mkdir -p "$DEB_ROOT/opt/QTuxTimings/bin"
     mkdir -p "$DEB_ROOT/usr/bin"
     mkdir -p "$DEB_ROOT/usr/share/polkit-1/actions"
     mkdir -p "$DEB_ROOT/usr/share/applications"
@@ -125,27 +127,27 @@ if [ "${1:-}" = "--deb" ]; then
 
     # Control file
     cat > "$DEB_ROOT/DEBIAN/control" << EOF
-Package: tuxtimings
+Package: qtuxtimings
 Version: $PKG_VERSION
 Section: utils
 Priority: optional
 Architecture: amd64
-Depends: libgtk-4-1, libgmp10, policykit-1, dmidecode, kmod
+Depends: libqt6widgets6, libqt6gui6, libqt6core6, qt6-wayland, libgmp10, policykit-1, dmidecode, kmod
 Recommends: dkms, linux-headers-generic
-Maintainer: Death4two <https://github.com/Death4two>
-Description: AMD Ryzen DRAM timings and CPU telemetry viewer (GTK4)
+Maintainer: drizzt <https://github.com/drizzt>
+Description: AMD Ryzen DRAM timings and CPU telemetry viewer (Qt6)
  Displays real-time DRAM timings, CPU frequencies, temperatures,
  and other telemetry data for AMD Ryzen processors.
 EOF
 
     # Binary
-    install -m755 "$LINUX_DIR/tuxtimings" "$DEB_ROOT/opt/TuxTimings/bin/tuxtimings"
+    install -m755 "$LINUX_DIR/build/qtuxtimings" "$DEB_ROOT/opt/QTuxTimings/bin/qtuxtimings"
 
     # Launcher script
-    cat > "$DEB_ROOT/usr/bin/tuxtimings" << 'LAUNCHER'
+    cat > "$DEB_ROOT/usr/bin/qtuxtimings" << 'LAUNCHER'
 #!/bin/bash
 if [ "$(id -u)" -eq 0 ]; then
-    exec /opt/TuxTimings/bin/tuxtimings "$@"
+    exec /opt/QTuxTimings/bin/qtuxtimings "$@"
 fi
 ENV_ARGS=""
 for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
@@ -153,54 +155,54 @@ for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
     eval VAL=\$$VAR
     [ -n "$VAL" ] && ENV_ARGS="$ENV_ARGS --env-$VAR=$VAL"
 done
-[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-GDK_BACKEND=wayland"
-exec pkexec /opt/TuxTimings/bin/tuxtimings $ENV_ARGS "$@"
+[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-QT_QPA_PLATFORM=wayland"
+exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
 LAUNCHER
-    chmod 755 "$DEB_ROOT/usr/bin/tuxtimings"
+    chmod 755 "$DEB_ROOT/usr/bin/qtuxtimings"
 
     # Polkit policy
-    cat > "$DEB_ROOT/usr/share/polkit-1/actions/com.tuxtimings.policy" << 'POLICY'
+    cat > "$DEB_ROOT/usr/share/polkit-1/actions/it.belloworld.QTuxTimings.policy" << 'POLICY'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <action id="com.tuxtimings.run">
-    <description>Run TuxTimings</description>
-    <message>Authentication is required to run TuxTimings</message>
+  <action id="it.belloworld.QTuxTimings.run">
+    <description>Run QTuxTimings</description>
+    <message>Authentication is required to run QTuxTimings</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/opt/TuxTimings/bin/tuxtimings</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/QTuxTimings/bin/qtuxtimings</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>
 POLICY
 
     # Desktop file
-    cat > "$DEB_ROOT/usr/share/applications/tuxtimings.desktop" << 'DESKTOP'
+    cat > "$DEB_ROOT/usr/share/applications/qtuxtimings.desktop" << 'DESKTOP'
 [Desktop Entry]
-Name=TuxTimings
+Name=QTuxTimings
 Comment=AMD Ryzen DRAM timings viewer
-Exec=tuxtimings
-Icon=tuxtimings
+Exec=qtuxtimings
+Icon=qtuxtimings
 Terminal=false
 Type=Application
 Categories=Utility;
 DESKTOP
 
     # Icon
-    if [ -f "$LINUX_DIR/tuxtimings.png" ]; then
-        install -m644 "$LINUX_DIR/tuxtimings.png" "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/tuxtimings.png"
+    if [ -f "$LINUX_DIR/qtuxtimings.png" ]; then
+        install -m644 "$LINUX_DIR/qtuxtimings.png" "$DEB_ROOT/usr/share/icons/hicolor/256x256/apps/qtuxtimings.png"
     fi
 
     dpkg-deb --build "$DEB_ROOT"
     mv "$DEB_ROOT.deb" "$ROOT_DIR/"
     rm -rf "$LINUX_DIR/deb-build"
-    echo "==> .deb package created: $ROOT_DIR/tuxtimings_${PKG_VERSION}_amd64.deb"
-    echo "    Install with: sudo dpkg -i tuxtimings_${PKG_VERSION}_amd64.deb"
+    echo "==> .deb package created: $ROOT_DIR/qtuxtimings_${PKG_VERSION}_amd64.deb"
+    echo "    Install with: sudo dpkg -i qtuxtimings_${PKG_VERSION}_amd64.deb"
     exit 0
 fi
 
@@ -215,11 +217,13 @@ fi
 
 if [ "$INSTALL_ONLY" -eq 0 ]; then
 
-echo "==> Building tuxtimings (C/GTK4)..."
+echo "==> Building qtuxtimings (C++/Qt6)..."
+# Drop any stale build/ so a cache from a different source path can't abort configure.
+rm -rf "$LINUX_DIR/build"
 if [ "$(id -u)" -eq 0 ]; then
-    su "$REAL_USER" -c "'$MAKE' -C '$LINUX_DIR' clean all"
+    su "$REAL_USER" -c "cmake -S '$LINUX_DIR' -B '$LINUX_DIR/build' -DCMAKE_BUILD_TYPE=Release && cmake --build '$LINUX_DIR/build'"
 else
-    "$MAKE" -C "$LINUX_DIR" clean all
+    cmake -S "$LINUX_DIR" -B "$LINUX_DIR/build" -DCMAKE_BUILD_TYPE=Release && cmake --build "$LINUX_DIR/build"
 fi
 
 fi # end INSTALL_ONLY check
@@ -231,18 +235,18 @@ if [ "$(id -u)" -ne 0 ]; then
     exec sudo "$0" --install-only "$@"
 fi
 
-echo "==> Installing TuxTimings to system..."
+echo "==> Installing QTuxTimings to system..."
 
 # Binary
 mkdir -p "$INSTALL_DIR/bin"
-cp "$LINUX_DIR/tuxtimings" "$INSTALL_DIR/bin/"
-chmod +x "$INSTALL_DIR/bin/tuxtimings"
+cp "$LINUX_DIR/build/qtuxtimings" "$INSTALL_DIR/bin/"
+chmod +x "$INSTALL_DIR/bin/qtuxtimings"
 
 # Launcher script in PATH
-cat > /usr/bin/tuxtimings << 'LAUNCHER'
+cat > /usr/bin/qtuxtimings << 'LAUNCHER'
 #!/bin/bash
 if [ "$(id -u)" -eq 0 ]; then
-    exec /opt/TuxTimings/bin/tuxtimings "$@"
+    exec /opt/QTuxTimings/bin/qtuxtimings "$@"
 fi
 ENV_ARGS=""
 for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
@@ -250,40 +254,40 @@ for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
     eval VAL=\$$VAR
     [ -n "$VAL" ] && ENV_ARGS="$ENV_ARGS --env-$VAR=$VAL"
 done
-[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-GDK_BACKEND=wayland"
-exec pkexec /opt/TuxTimings/bin/tuxtimings $ENV_ARGS "$@"
+[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-QT_QPA_PLATFORM=wayland"
+exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
 LAUNCHER
-chmod +x /usr/bin/tuxtimings
+chmod +x /usr/bin/qtuxtimings
 
 # Polkit policy
 mkdir -p /usr/share/polkit-1/actions
-cat > /usr/share/polkit-1/actions/com.tuxtimings.policy << 'POLICY'
+cat > /usr/share/polkit-1/actions/it.belloworld.QTuxTimings.policy << 'POLICY'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE policyconfig PUBLIC
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
 <policyconfig>
-  <action id="com.tuxtimings.run">
-    <description>Run TuxTimings</description>
-    <message>Authentication is required to run TuxTimings</message>
+  <action id="it.belloworld.QTuxTimings.run">
+    <description>Run QTuxTimings</description>
+    <message>Authentication is required to run QTuxTimings</message>
     <defaults>
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
       <allow_active>auth_admin_keep</allow_active>
     </defaults>
-    <annotate key="org.freedesktop.policykit.exec.path">/opt/TuxTimings/bin/tuxtimings</annotate>
+    <annotate key="org.freedesktop.policykit.exec.path">/opt/QTuxTimings/bin/qtuxtimings</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 </policyconfig>
 POLICY
 
 # Desktop file
-cat > /usr/share/applications/tuxtimings.desktop << 'DESKTOP'
+cat > /usr/share/applications/qtuxtimings.desktop << 'DESKTOP'
 [Desktop Entry]
-Name=TuxTimings
+Name=QTuxTimings
 Comment=AMD Ryzen DRAM timings viewer
-Exec=tuxtimings
-Icon=tuxtimings
+Exec=qtuxtimings
+Icon=qtuxtimings
 Terminal=false
 Type=Application
 Categories=Utility;
@@ -294,26 +298,26 @@ DESKTOP_DIR="${REAL_HOME}/Desktop"
 [ ! -d "$DESKTOP_DIR" ] && \
     DESKTOP_DIR=$(su "$REAL_USER" -c 'xdg-user-dir DESKTOP 2>/dev/null' || true)
 if [ -d "$DESKTOP_DIR" ]; then
-    cp /usr/share/applications/tuxtimings.desktop "$DESKTOP_DIR/"
-    chown "$REAL_USER":"$REAL_USER" "$DESKTOP_DIR/tuxtimings.desktop"
-    chmod +x "$DESKTOP_DIR/tuxtimings.desktop"
+    cp /usr/share/applications/qtuxtimings.desktop "$DESKTOP_DIR/"
+    chown "$REAL_USER":"$REAL_USER" "$DESKTOP_DIR/qtuxtimings.desktop"
+    chmod +x "$DESKTOP_DIR/qtuxtimings.desktop"
 fi
 
 # Icon
-if [ -f "$LINUX_DIR/tuxtimings.png" ]; then
+if [ -f "$LINUX_DIR/qtuxtimings.png" ]; then
     mkdir -p /usr/share/icons/hicolor/256x256/apps
-    cp "$LINUX_DIR/tuxtimings.png" /usr/share/icons/hicolor/256x256/apps/
-    gtk-update-icon-cache /usr/share/icons/hicolor/ 2>/dev/null || true
+    cp "$LINUX_DIR/qtuxtimings.png" /usr/share/icons/hicolor/256x256/apps/
+    xdg-icon-resource forceupdate --theme hicolor 2>/dev/null || true
 fi
 
 # ── ryzen_smu kernel module ──────────────────────────────────────────
-# TuxTimings requires ryzen_smu for PM-table/SMN readings, but ryzen_smu is a
+# QTuxTimings requires ryzen_smu for PM-table/SMN readings, but ryzen_smu is a
 # separate project and is not bundled/installed by this script.
 if modprobe ryzen_smu 2>/dev/null; then
     echo "==> ryzen_smu module available."
 else
     echo "==> WARNING: ryzen_smu kernel module not found."
-    echo "    TuxTimings will have missing readings until you install it."
+    echo "    QTuxTimings will have missing readings until you install it."
     echo ""
     echo "    Install it manually:"
     echo "      Arch:   yay -S ryzen_smu-dkms-git"
@@ -397,7 +401,7 @@ install_tuxbench() {
 
     if dkms add tuxbench/"$TB_VER" 2>/dev/null || true; then
         if dkms build tuxbench/"$TB_VER" && dkms install tuxbench/"$TB_VER"; then
-            echo "==> tuxbench installed successfully (loaded on demand by TuxTimings)."
+            echo "==> tuxbench installed successfully (loaded on demand by QTuxTimings)."
         else
             echo "    WARNING: tuxbench DKMS build failed. Check kernel headers."
             return 1
@@ -435,10 +439,10 @@ else
 fi
 
 echo "==> Installation complete!"
-echo "    Binary:    $INSTALL_DIR/bin/tuxtimings"
-echo "    Launcher:  /usr/bin/tuxtimings"
-echo "    Policy:    /usr/share/polkit-1/actions/com.tuxtimings.policy"
-echo "    Desktop:   /usr/share/applications/tuxtimings.desktop"
+echo "    Binary:    $INSTALL_DIR/bin/qtuxtimings"
+echo "    Launcher:  /usr/bin/qtuxtimings"
+echo "    Policy:    /usr/share/polkit-1/actions/it.belloworld.QTuxTimings.policy"
+echo "    Desktop:   /usr/share/applications/qtuxtimings.desktop"
 echo ""
-echo "    Run with:  tuxtimings"
+echo "    Run with:  qtuxtimings"
 

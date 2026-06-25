@@ -1,6 +1,10 @@
 #ifndef BENCH_H
 #define BENCH_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     double lat_l1_ns;
     double lat_l2_ns;
@@ -14,5 +18,8 @@ typedef struct {
 /* Run all benchmarks — blocks for ~2–4 seconds. Call from a background thread. */
 void bench_run(bench_results_t *out);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* BENCH_H */

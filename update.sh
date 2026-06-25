@@ -32,7 +32,7 @@ EOF
   exit 0
 fi
 
-echo "==> Updating TuxTimings (main)..."
+echo "==> Updating QTuxTimings (main)..."
 git -C "$ROOT_DIR" fetch origin main
 git -C "$ROOT_DIR" checkout -q main
 
