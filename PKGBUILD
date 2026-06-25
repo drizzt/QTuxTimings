@@ -1,35 +1,47 @@
 # Maintainer: drizzt <https://github.com/drizzt>
-pkgbase=qtuxtimings
-pkgname=('qtuxtimings' 'qtuxtimings-dkms')
+pkgbase=qtuxtimings-git
+pkgname=('qtuxtimings-git' 'qtuxtimings-dkms-git')
+# Set by pkgver(); RELEASE.rREVISION.gHASH from the upstream tag (e.g.
+# 1.0.5.r6.g8f1776b). Builds from the branch tip, hence the -git suffix and the
+# git+ source, per the Arch VCS package guidelines.
 pkgver=1.0.5
-pkgrel=8
+pkgrel=1
 pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (Qt6)"
 arch=('x86_64')
 url="https://github.com/drizzt/QTuxTimings"
 license=('GPL3')
-makedepends=('gcc' 'cmake' 'qt6-base')
-source=("$pkgbase-$pkgver.tar.gz::https://github.com/drizzt/QTuxTimings/archive/refs/heads/main.tar.gz")
+makedepends=('git' 'gcc' 'cmake' 'qt6-base')
+source=("$pkgbase::git+https://github.com/drizzt/QTuxTimings.git")
 sha256sums=('SKIP')
 
+pkgver() {
+    cd "$srcdir/$pkgbase"
+    # Needs the upstream tag (v1.0.5) reachable in this clone: push it to the
+    # origin remote so AUR builds can describe against it.
+    git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
 build() {
-    cd "$srcdir/QTuxTimings-main/Linux"
+    cd "$srcdir/$pkgbase/Linux"
     rm -rf build
     cmake -B build -DCMAKE_BUILD_TYPE=Release
     cmake --build build
 }
 
-package_qtuxtimings() {
+package_qtuxtimings-git() {
     pkgdesc="AMD Ryzen DRAM timings and CPU telemetry viewer (Qt6)"
     # qt6-wayland ships the Wayland QPA platform plugin; the launcher forces
     # QT_QPA_PLATFORM=wayland on Wayland sessions, so it must be present.
     depends=('qt6-base' 'qt6-wayland')
+    provides=('qtuxtimings')
+    conflicts=('qtuxtimings')
     optdepends=(
-        'qtuxtimings-dkms: kernel modules for accurate benchmarking and memory voltages'
+        'qtuxtimings-dkms-git: kernel modules for accurate benchmarking and memory voltages'
         'ryzen_smu-dkms-git: kernel module for reading AMD SMN/PM tables'
         'nct6775-dkms-git: fan readings on boards with Nuvoton Super I/O (NCT6775F through NCT6799D)'
     )
 
-    cd "$srcdir/QTuxTimings-main/Linux"
+    cd "$srcdir/$pkgbase/Linux"
 
     # Binary
     install -Dm755 build/qtuxtimings "$pkgdir/opt/QTuxTimings/bin/qtuxtimings"
@@ -89,13 +101,15 @@ exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
 LAUNCHER
 }
 
-package_qtuxtimings-dkms() {
+package_qtuxtimings-dkms-git() {
     pkgdesc="DKMS kernel modules for QTuxTimings (aod-voltages, tuxbench)"
     depends=('dkms' 'linux-headers')
+    provides=('qtuxtimings-dkms')
+    conflicts=('qtuxtimings-dkms')
     optdepends=('clang: required if your kernel was built with Clang (CachyOS, etc)')
     install=qtuxtimings-dkms.install
 
-    cd "$srcdir/QTuxTimings-main/Linux"
+    cd "$srcdir/$pkgbase/Linux"
 
     # aod-voltages DKMS module source
     local aod_ver

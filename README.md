@@ -40,6 +40,57 @@ makepkg -si
 
 This uses the included PKGBUILD to build and install via pacman. The `aod-voltages` kernel module (for memory voltage readings) is bundled and built automatically via DKMS. Uninstall with `sudo pacman -R qtuxtimings`.
 
+#### Fedora
+
+All three kernel modules (`aod_voltages`, `tuxbench`, and `ryzen_smu`) are
+packaged as **akmods**, so they are rebuilt automatically whenever you install a
+new kernel — the Fedora equivalent of DKMS. `ryzen_smu` is built from a pinned
+upstream commit (it has no Fedora package), so `./install.sh --rpm` needs network
+access to fetch it.
+
+##### From COPR (prebuilt)
+
+```bash
+sudo dnf copr enable tredaell/QTuxTimings
+sudo dnf install qtuxtimings
+```
+
+`akmod-ryzen_smu` is pulled in automatically (it is a hard dependency);
+`akmod-aod-voltages` and `akmod-tuxbench` come in via `Recommends`. akmods
+compiles the modules for your running kernel on install and rebuilds them on
+every kernel update, so make sure the prerequisites are present:
+
+```bash
+sudo dnf install akmods kernel-devel
+```
+
+The modules are x86_64-only (they use AVX2).
+
+##### From source
+
+```bash
+# Module build prerequisites (akmods rebuilds the .ko on kernel updates)
+sudo dnf install akmods kernel-devel
+
+# Build deps (only needed to create the RPMs)
+sudo dnf install gcc-c++ cmake qt6-qtbase-devel gmp-devel rpm-build rpmdevtools
+
+# Build the app RPM + the akmod packages (downloads ryzen_smu source)
+./install.sh --rpm
+
+# Install everything; akmods compiles the modules for your running kernel
+sudo dnf install ./qtuxtimings-*.rpm ./akmod-*.rpm ./*-kmod-common-*.rpm
+```
+
+Uninstall with (the `kmod-*` globs drop the per-kernel modules akmods built):
+
+```bash
+sudo dnf remove qtuxtimings \
+    'akmod-ryzen_smu'    'kmod-ryzen_smu-*' \
+    'akmod-aod-voltages' 'kmod-aod-voltages-*' \
+    'akmod-tuxbench'     'kmod-tuxbench-*'
+```
+
 #### Ubuntu / Debian
 
 ```bash

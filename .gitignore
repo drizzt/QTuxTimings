@@ -9,6 +9,13 @@ dump_pm_voltages.py
 pkg/
 /src/
 
+# RPM build artifacts (install.sh --rpm)
+*.rpm
+/Linux/rpm-build/
+
+# COPR srpm build tree (.copr/Makefile)
+/.copr-rpmbuild/
+
 # Debug/dump output files
 pm_table_dump.txt
 *.dsl

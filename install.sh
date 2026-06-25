@@ -6,6 +6,7 @@
 #   ./install.sh              Build and install to system
 #   ./install.sh --uninstall  Remove all installed files
 #   ./install.sh --deb        Build a .deb package (Ubuntu/Debian)
+#   ./install.sh --rpm        Build RPMs + akmods modules (Fedora)
 #
 # On Arch-based distros, prefer:  makepkg -si  (from the repo root)
 set -e
@@ -101,20 +102,15 @@ if [ "${1:-}" = "--deb" ]; then
         cmake -S "$LINUX_DIR" -B "$LINUX_DIR/build" -DCMAKE_BUILD_TYPE=Release && cmake --build "$LINUX_DIR/build"
     fi
 
-    # Prefer a version derived from git tags when available, otherwise fall back
-    # to a stable placeholder.
-    PKG_VERSION="0.0.0"
+    # Debian snapshot versioning (post-release): <upstream-base>+git<date>.<hash>,
+    # i.e. "everything in the base release plus the changes since". The base is the
+    # same source of truth as the RPM (qtuxtimings.spec %global baseversion); bump
+    # it only on an upstream rebase. '+' sorts after the bare base in dpkg.
+    PKG_VERSION="$(grep -m1 '^%global baseversion' "$ROOT_DIR/qtuxtimings.spec" | awk '{print $3}')"
     if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        # Examples:
-        #   v1.2.3          -> 1.2.3
-        #   v1.2.3-5-g<sha> -> 1.2.3+5.g<sha>
-        ver="$(git -C "$ROOT_DIR" describe --tags --always --dirty 2>/dev/null || true)"
-        ver="${ver#v}"
-        # Debian version: allow [0-9A-Za-z.+~:-]
-        # Translate git-describe output into something dpkg accepts.
-        ver="${ver//-/.}"      # separators
-        ver="${ver//_/.}"      # safety
-        PKG_VERSION="${ver//.g/+g}"  # "…+g<sha>" instead of "…g<sha>"
+        gdate="$(git -C "$ROOT_DIR" log -1 --date=format:%Y%m%d --format=%cd HEAD)"
+        ghash="$(git -C "$ROOT_DIR" rev-parse --short=7 HEAD)"
+        PKG_VERSION="${PKG_VERSION}+git${gdate}.${ghash}"
     fi
     DEB_ROOT="$LINUX_DIR/deb-build/qtuxtimings_${PKG_VERSION}_amd64"
     rm -rf "$LINUX_DIR/deb-build"
@@ -203,6 +199,130 @@ DESKTOP
     rm -rf "$LINUX_DIR/deb-build"
     echo "==> .deb package created: $ROOT_DIR/qtuxtimings_${PKG_VERSION}_amd64.deb"
     echo "    Install with: sudo dpkg -i qtuxtimings_${PKG_VERSION}_amd64.deb"
+    exit 0
+fi
+
+# ── Build RPM packages (Fedora) ───────────────────────────────────────
+if [ "${1:-}" = "--rpm" ]; then
+    echo "==> Building RPM packages (Fedora / akmods)..."
+
+    if ! command -v rpmbuild &>/dev/null; then
+        echo "ERROR: rpmbuild not found. Install the build tooling first:"
+        echo "    sudo dnf install rpm-build rpmdevtools akmods kernel-devel"
+        exit 1
+    fi
+
+    # Each spec carries the upstream base version in a %global baseversion (single
+    # source of truth). This fork builds a git snapshot, so per the Fedora
+    # Versioning Guidelines append a post-release "^<date>git<rev>" field taken
+    # from the built commit; the specs read it from --define "snap ..." below.
+    _base_ver() { grep -m1 '^%global baseversion' "$1" | awk '{print $3}'; }
+    SNAP=""
+    if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        SNAP="$(git -C "$ROOT_DIR" log -1 --date=format:%Y%m%d --format=%cd HEAD)git$(git -C "$ROOT_DIR" rev-parse --short=7 HEAD)"
+    fi
+    _full_ver() { local b; b=$(_base_ver "$1"); [ -n "$SNAP" ] && echo "${b}^${SNAP}" || echo "$b"; }
+
+    AOD_BASE=$(_base_ver "$ROOT_DIR/aod-voltages-kmod.spec")
+    TB_BASE=$(_base_ver "$ROOT_DIR/tuxbench-kmod.spec")
+    PKG_VERSION=$(_full_ver "$ROOT_DIR/qtuxtimings.spec")
+    AOD_VER=$(_full_ver "$ROOT_DIR/aod-voltages-kmod.spec")
+    TB_VER=$(_full_ver "$ROOT_DIR/tuxbench-kmod.spec")
+
+    # The native/DKMS path versions each module from its dkms.conf; guard against
+    # the spec baseversion drifting from that canonical value (snapshot field aside).
+    for mod_ver in "aod-voltages:$AOD_BASE" "tuxbench:$TB_BASE"; do
+        mod=${mod_ver%%:*}; spec_v=${mod_ver##*:}
+        dkms_v=$(grep '^PACKAGE_VERSION=' "$LINUX_DIR/src/$mod/dkms.conf" | cut -d= -f2 | tr -d '"')
+        if [ "$spec_v" != "$dkms_v" ]; then
+            echo "ERROR: $mod version drift: $mod-kmod.spec baseversion=$spec_v but dkms.conf=$dkms_v."
+            echo "    Sync the spec %global baseversion with src/$mod/dkms.conf PACKAGE_VERSION."
+            exit 1
+        fi
+    done
+
+    TOPDIR="$LINUX_DIR/rpm-build"
+    rm -rf "$TOPDIR"
+    mkdir -p "$TOPDIR"/{SOURCES,SPECS,BUILD,BUILDROOT,RPMS,SRPMS}
+
+    # ── Source tarballs ───────────────────────────────────────────────
+    # App: whole repo under a qtuxtimings-<ver>/ prefix (spec builds Linux/).
+    if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Archive a transient stash so uncommitted (tracked) edits land in the
+        # package; `stash create` prints nothing on a clean tree, so fall back
+        # to HEAD.
+        SRC_REF=$(git -C "$ROOT_DIR" stash create 2>/dev/null || true)
+        git -C "$ROOT_DIR" archive --format=tar.gz --prefix="qtuxtimings-$PKG_VERSION/" \
+            -o "$TOPDIR/SOURCES/qtuxtimings-$PKG_VERSION.tar.gz" "${SRC_REF:-HEAD}"
+    else
+        tar czf "$TOPDIR/SOURCES/qtuxtimings-$PKG_VERSION.tar.gz" \
+            --transform "s,^,qtuxtimings-$PKG_VERSION/," -C "$ROOT_DIR" Linux LICENSE
+    fi
+
+    # Each kmod source: a <module>/ dir with the module sources + LICENSE
+    # (the kmod spec ships LICENSE in its -common subpackage).
+    _mk_kmod_tar() {
+        local mod="$1" ver="$2"
+        local work="$TOPDIR/.tar-$mod"
+        rm -rf "$work"; mkdir -p "$work/$mod"
+        cp "$LINUX_DIR/src/$mod/"* "$work/$mod/"
+        cp "$ROOT_DIR/LICENSE" "$work/$mod/LICENSE"
+        tar czf "$TOPDIR/SOURCES/$mod-$ver.tar.gz" -C "$work" "$mod"
+        rm -rf "$work"
+    }
+    _mk_kmod_tar aod-voltages "$AOD_VER"
+    _mk_kmod_tar tuxbench     "$TB_VER"
+
+    # ryzen_smu source: the only source fetched over the network. spectool reads
+    # the pinned commit and URL straight from Source0 in ryzen_smu-kmod.spec (one
+    # source of truth) and writes the tarball under the exact name rpmbuild wants.
+    if ! command -v spectool &>/dev/null; then
+        echo "ERROR: spectool is required to fetch the ryzen_smu source:"
+        echo "    sudo dnf install rpmdevtools"
+        exit 1
+    fi
+    echo "==> Fetching ryzen_smu source (Source0 from ryzen_smu-kmod.spec)..."
+    if ! spectool -g -C "$TOPDIR/SOURCES" "$ROOT_DIR/ryzen_smu-kmod.spec"; then
+        echo "ERROR: failed to download ryzen_smu source (offline?)."
+        exit 1
+    fi
+
+    # ── Build ─────────────────────────────────────────────────────────
+    # Specs must live in %{_topdir}/SPECS: the kmod akmod_install step re-runs
+    # `rpmbuild -bs %{_specdir}/%{name}.spec` to emit the SRPM akmods rebuilds.
+    cp "$ROOT_DIR/qtuxtimings.spec" "$ROOT_DIR/aod-voltages-kmod.spec" \
+       "$ROOT_DIR/tuxbench-kmod.spec" "$ROOT_DIR/ryzen_smu-kmod.spec" "$TOPDIR/SPECS/"
+    # Bake the snapshot field into the spec itself (not via --define): the akmod
+    # SRPM that akmods rebuilds on the target machine, like COPR's binary rebuild,
+    # re-runs rpmbuild without our defines, so %{snap} must live in the spec.
+    # ryzen_smu pins its own snapshot and is left untouched.
+    if [ -n "$SNAP" ]; then
+        for s in qtuxtimings aod-voltages-kmod tuxbench-kmod; do
+            sed -i "1i %global snap $SNAP" "$TOPDIR/SPECS/$s.spec"
+        done
+    fi
+    # Build the app, then the three kmods. Order is cosmetic: rpmbuild -bb does
+    # not resolve inter-package Requires, so these are independent builds.
+    for spec in qtuxtimings aod-voltages-kmod tuxbench-kmod ryzen_smu-kmod; do
+        rpmbuild --define "_topdir $TOPDIR" -bb "$TOPDIR/SPECS/$spec.spec"
+    done
+
+    # Collect the akmod + app + common RPMs (skip the per-kernel kmod-*, which
+    # akmods builds on the target machine).
+    rm -f "$ROOT_DIR"/qtuxtimings-*.rpm "$ROOT_DIR"/akmod-*.rpm "$ROOT_DIR"/*-kmod-common-*.rpm
+    find "$TOPDIR/RPMS" -type f -name '*.rpm' \
+        ! -name 'kmod-aod-voltages-*' ! -name 'kmod-tuxbench-*' ! -name 'kmod-ryzen_smu-*' \
+        -exec cp {} "$ROOT_DIR/" \;
+    rm -rf "$TOPDIR"
+
+    echo "==> RPM packages created in $ROOT_DIR:"
+    ls -1 "$ROOT_DIR"/qtuxtimings-*.rpm "$ROOT_DIR"/akmod-*.rpm "$ROOT_DIR"/*-kmod-common-*.rpm 2>/dev/null | sed 's,^,    ,'
+    echo ""
+    echo "    Module build prerequisites (once):"
+    echo "      sudo dnf install akmods kernel-devel"
+    echo "    Install:"
+    echo "      sudo dnf install ./qtuxtimings-*.rpm ./akmod-*.rpm ./*-kmod-common-*.rpm"
+    echo "    akmods then compiles aod_voltages/tuxbench/ryzen_smu and rebuilds them on kernel updates."
     exit 0
 fi
 
