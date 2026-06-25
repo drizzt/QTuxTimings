@@ -36,10 +36,16 @@ add_executable(qtuxtimings
     src/main.cpp
 )
 
-# Hardening / tuning flags carried over from the original Makefile.
+# ISA baseline: AVX2 + CLFLUSHOPT, present on every AMD Ryzen (Zen 1+). The
+# AVX-512 benchmark paths compile per-function via __attribute__((target)) and
+# self-gate at runtime with __builtin_cpu_supports(), so no global -mavx512f is
+# needed. Deliberately NOT -march=native: it bakes the build host's CPU into
+# the binary, which breaks distro/remote builds (COPR, etc.) and is wrong for
+# any redistributable package. Build natively by adding -march=native to your
+# CFLAGS (e.g. in makepkg.conf) if you really want a host-pinned binary.
 target_compile_options(qtuxtimings PRIVATE
     -Wall -Wextra
-    -march=native -mclflushopt
+    -mavx2 -mclflushopt
     -fstack-protector-strong
 )
 target_compile_definitions(qtuxtimings PRIVATE _FORTIFY_SOURCE=2)
