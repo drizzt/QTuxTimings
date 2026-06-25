@@ -149,14 +149,14 @@ EOF
 if [ "$(id -u)" -eq 0 ]; then
     exec /opt/QTuxTimings/bin/qtuxtimings "$@"
 fi
-ENV_ARGS=""
+ENV_ARGS=()
 for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
            DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_HOME HOME; do
     eval VAL=\$$VAR
-    [ -n "$VAL" ] && ENV_ARGS="$ENV_ARGS --env-$VAR=$VAL"
+    [ -n "$VAL" ] && ENV_ARGS+=("--env-$VAR=$VAL")
 done
-[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-QT_QPA_PLATFORM=wayland"
-exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
+[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS+=("--env-QT_QPA_PLATFORM=wayland")
+exec pkexec /opt/QTuxTimings/bin/qtuxtimings "${ENV_ARGS[@]}" "$@"
 LAUNCHER
     chmod 755 "$DEB_ROOT/usr/bin/qtuxtimings"
 
@@ -248,14 +248,14 @@ cat > /usr/bin/qtuxtimings << 'LAUNCHER'
 if [ "$(id -u)" -eq 0 ]; then
     exec /opt/QTuxTimings/bin/qtuxtimings "$@"
 fi
-ENV_ARGS=""
+ENV_ARGS=()
 for VAR in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XAUTHORITY \
            DBUS_SESSION_BUS_ADDRESS XDG_CONFIG_HOME HOME; do
     eval VAL=\$$VAR
-    [ -n "$VAL" ] && ENV_ARGS="$ENV_ARGS --env-$VAR=$VAL"
+    [ -n "$VAL" ] && ENV_ARGS+=("--env-$VAR=$VAL")
 done
-[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS="$ENV_ARGS --env-QT_QPA_PLATFORM=wayland"
-exec pkexec /opt/QTuxTimings/bin/qtuxtimings $ENV_ARGS "$@"
+[ -n "$WAYLAND_DISPLAY" ] && ENV_ARGS+=("--env-QT_QPA_PLATFORM=wayland")
+exec pkexec /opt/QTuxTimings/bin/qtuxtimings "${ENV_ARGS[@]}" "$@"
 LAUNCHER
 chmod +x /usr/bin/qtuxtimings
 
