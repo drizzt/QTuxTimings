@@ -437,9 +437,10 @@ static int hwmon_vddio_mv(void)
     return mv;
 }
 
-/* 1) Super-IO sensor (what ZenTimings shows on Windows), 2) AOD ApuVddio
- * (the APU rail; 0 on desktop parts), 3) AOD MemVddio, so the row is never a
- * bare dash. The source string says which one produced the number. */
+/* 1) Super-IO sensor (what ZenTimings shows on Windows), 2) AOD ApuVddio.
+ * Both are the SoC-side VDDIO; the DIMM-side MemVddio is a different rail, so
+ * it is not used as a fallback — an em dash is the honest answer when the
+ * programmed value is only in APOB's profile record and that record is empty. */
 static void read_vddio(smu_metrics_t *m, char *src, size_t sz)
 {
     int mv = hwmon_vddio_mv();
@@ -447,9 +448,6 @@ static void read_vddio(smu_metrics_t *m, char *src, size_t sz)
 
     mv = read_int_file("/sys/kernel/aod_voltages/cpu_vddio");
     if (mv > 500 && mv < 3000) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "AOD"); return; }
-
-    mv = read_int_file("/sys/kernel/aod_voltages/mem_vddio");
-    if (mv > 500 && mv < 3000) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "AOD MemVddio"); return; }
 
     m->cpu_vddio = 0.0f;
     snprintf(src, sz, "—");

@@ -324,12 +324,9 @@ QWidget *MainWindow::build_ram_tab()
         grid_row(g, r++, "Rtt Wr", &lbl_rtt_wr);
         grid_row(g, r++, "Rtt Park", &lbl_rtt_park);
         grid_row(g, r++, "Rtt Park Dqs", &lbl_rtt_park_dqs);
-        grid_row(g, r++, "CA ODT A", &lbl_ca_odt_a);
-        grid_row(g, r++, "CA ODT B", &lbl_ca_odt_b);
-        grid_row(g, r++, "CK ODT A", &lbl_ck_odt_a);
-        grid_row(g, r++, "CK ODT B", &lbl_ck_odt_b);
-        grid_row(g, r++, "CS ODT A", &lbl_cs_odt_a);
-        grid_row(g, r++, "CS ODT B", &lbl_cs_odt_b);
+        grid_row(g, r++, "CA ODT A/B", &lbl_ca_odt_a);
+        grid_row(g, r++, "CK ODT A/B", &lbl_ck_odt_a);
+        grid_row(g, r++, "CS ODT A/B", &lbl_cs_odt_a);
         grid_row(g, r++, "PhyVref", &lbl_phy_vref);
         grid_row(g, r++, "VrefDQ", &lbl_vref_dq);
         grid_row(g, r++, "VrefCA", &lbl_vref_ca);
@@ -610,6 +607,14 @@ static void set_term(QLabel *lbl, const char *decoded, int code)
     else set_label_fmt(lbl, "%s  [%d]", decoded, code);
 }
 
+/* ZenTimings shows the command-bus terminators as a Group A / Group B pair;
+ * the app's idiom for a per-channel pair is one row, so render "A / B". */
+static void set_apob_odt(QLabel *lbl, int a, int b)
+{
+    if (a < 0 && b < 0) set_label_text(lbl, "—");
+    else set_label_fmt(lbl, "%s / %s", apob_group_odt_name(a), apob_group_odt_name(b));
+}
+
 void MainWindow::refresh()
 {
     setlocale(LC_NUMERIC, "C");
@@ -784,12 +789,9 @@ void MainWindow::refresh()
         /* APOB: per-channel command-bus terminators and the read thresholds */
         {
             const apob_mem_config_t *ap = &s->apob;
-            set_term(lbl_ca_odt_a, apob_group_odt_name(ap->ca_odt_a),  ap->ca_odt_a);
-            set_term(lbl_ca_odt_b, apob_group_odt_name(ap->ca_odt_b),  ap->ca_odt_b);
-            set_term(lbl_ck_odt_a, apob_group_odt_name(ap->ck_odt_a),  ap->ck_odt_a);
-            set_term(lbl_ck_odt_b, apob_group_odt_name(ap->ck_odt_b),  ap->ck_odt_b);
-            set_term(lbl_cs_odt_a, apob_group_odt_name(ap->cs_odt_a),  ap->cs_odt_a);
-            set_term(lbl_cs_odt_b, apob_group_odt_name(ap->cs_odt_b),  ap->cs_odt_b);
+            set_apob_odt(lbl_ca_odt_a, ap->ca_odt_a, ap->ca_odt_b);
+            set_apob_odt(lbl_ck_odt_a, ap->ck_odt_a, ap->ck_odt_b);
+            set_apob_odt(lbl_cs_odt_a, ap->cs_odt_a, ap->cs_odt_b);
             set_term(lbl_phy_vref, apob_phy_vref_name(ap->phy_vref),       ap->phy_vref);
             set_term(lbl_vref_dq,  apob_vref_dq_name(ap->dram_vref_dq),    ap->dram_vref_dq);
             set_term(lbl_vref_ca,  apob_vref_dq_name(ap->dram_vref_ca),    ap->dram_vref_ca);
