@@ -165,6 +165,7 @@ QWidget *MainWindow::build_ram_tab()
         QGridLayout *g = new_grid(2, 8);
         int r = 0;
         grid_row(g, r++, "Capacity:", &lbl_capacity);
+        grid_row(g, r++, "Total:", &lbl_total_capacity);
         grid_row(g, r++, "Manufacturer:", &lbl_manufacturer);
         grid_row(g, r++, "Part Number:", &lbl_part_number);
         grid_row(g, r++, "Serial:", &lbl_serial_number);
@@ -281,6 +282,8 @@ QWidget *MainWindow::build_ram_tab()
         grid_row(g, r++, "tPHYWRD A/B", &lbl_phy_wrd);
         grid_row(g, r++, "PHY A = B", &lbl_phy_match);
         grid_row(g, r++, "Refresh", &lbl_refresh_mode);
+        grid_row(g, r++, "BGS", &lbl_bgs);
+        grid_row(g, r++, "BGS Alt", &lbl_bgs_alt);
         grid_row(g, r++, "Nitro (Rx/Tx/Ctrl)", &lbl_nitro);
         grid_row(g, r++, "tCCD_L_WR2", &lbl_ccdl_wr2);
         grid_row(g, r++, "RDPOST", &lbl_rdpost);
@@ -648,6 +651,7 @@ void MainWindow::refresh()
     if (mi >= 0 && mi < s->module_count) {
         const memory_module_t *mod = &s->modules[mi];
         set_label_text(lbl_capacity, mod->capacity_display);
+        set_label_text(lbl_total_capacity, s->memory.total_capacity[0] ? s->memory.total_capacity : "—");
         set_label_text(lbl_manufacturer, mod->manufacturer[0] ? mod->manufacturer : "—");
         set_label_text(lbl_part_number, mod->part_number[0] ? mod->part_number : "—");
         set_label_text(lbl_serial_number, mod->serial_number[0] ? mod->serial_number : "—");
@@ -724,6 +728,8 @@ void MainWindow::refresh()
     set_label_fmt(lbl_phy_wrd, "%u / %u", d->phy_wrd, d->phy_wrd_b);
     set_label_text(lbl_phy_match, d->phy_matched ? "yes" : "no — try ARdPtrInitVal");
     set_label_text(lbl_refresh_mode, d->refresh_mode[0] ? d->refresh_mode : "—");
+    set_label_fmt(lbl_bgs, "%s", d->bgs_enabled ? "Enabled" : "Disabled");
+    set_label_fmt(lbl_bgs_alt, "%s", d->bgs_alt_enabled ? "Enabled" : "Disabled");
     set_label_fmt(lbl_nitro, "%u/%u/%u", d->nitro_rx, d->nitro_tx, d->nitro_ctrl);
     set_label_fmt(lbl_ccdl_wr2, "%u", d->ccdl_wr2);
     set_label_fmt(lbl_rdpost, "%u", d->rdpost);

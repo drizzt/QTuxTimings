@@ -157,6 +157,18 @@ static void read_common_timings(uint32_t offset, dram_timings_t *d)
 
     d->ddr_max_rate = bit_slice(read_smn(offset | 0x50DF0), 7, 0);
     d->ccdl_wr2     = bit_slice(read_smn(offset | 0x502E0), 5, 0);
+
+    /* Bank Group Scramble: the register holds the per-bank-group scramble map,
+     * and the sentinel 0x87654321 on both instances means "identity", i.e.
+     * disabled — ZenStates-Core's test, so the two apps agree on the label. */
+    uint32_t bgs0 = read_smn(offset | 0x50050);
+    uint32_t bgs1 = read_smn(offset | 0x50058);
+    d->bgs_raw = bgs0;
+    d->bgs_enabled = !(bgs0 == 0x87654321u && bgs1 == 0x87654321u);
+    uint32_t bgsa0 = read_smn(offset | 0x500D0);
+    uint32_t bgsa1 = read_smn(offset | 0x500D4);
+    d->bgs_alt_raw = bgsa0;
+    d->bgs_alt_enabled = (bit_slice(bgsa0, 10, 4) > 0) || (bit_slice(bgsa1, 10, 4) > 0);
 }
 
 /*

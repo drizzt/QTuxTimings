@@ -121,6 +121,9 @@ typedef struct {
     uint32_t lp_dly, lp_exit_dly;
     uint32_t rd_brst_gap, wr_brst_gap;
     uint32_t burst_length, ddr_max_rate;
+    /* Bank Group Scramble / Scatter (0x50050, 0x50058, 0x500D0, 0x500D4) */
+    bool bgs_enabled, bgs_alt_enabled;
+    uint32_t bgs_raw, bgs_alt_raw;
     /* RFC */
     uint32_t rfc, rfc2, rfcsb;
     /* Nanoseconds */

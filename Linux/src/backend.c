@@ -1104,7 +1104,33 @@ void backend_read_summary(system_summary_t *out)
             mem_freq = (float)max_cfg;
     }
     out->memory.frequency = mem_freq;
-    read_total_memory(out->memory.total_capacity, sizeof(out->memory.total_capacity));
+    /* Total kit capacity, the way ZenTimings reports it: the sum of the
+     * populated DIMMs, not what the OS has left to allocate. */
+    {
+        uint64_t sum = 0, each = 0;
+        int n = 0;
+        bool uniform = true;
+        for (int i = 0; i < s_module_count; i++) {
+            uint64_t c = s_modules[i].capacity_bytes;
+            if (!c) continue;
+            if (!each) each = c;
+            else if (each != c) uniform = false;
+            sum += c;
+            n++;
+        }
+        if (n > 0) {
+            double gib = (double)sum / (1024.0 * 1024.0 * 1024.0);
+            if (uniform && n > 1)
+                snprintf(out->memory.total_capacity, sizeof(out->memory.total_capacity),
+                         "%.0f GiB  (%d × %.0f GiB)", gib, n,
+                         (double)each / (1024.0 * 1024.0 * 1024.0));
+            else
+                snprintf(out->memory.total_capacity, sizeof(out->memory.total_capacity),
+                         "%.1f GiB  (%d DIMM%s)", gib, n, n > 1 ? "s" : "");
+        } else {
+            read_total_memory(out->memory.total_capacity, sizeof(out->memory.total_capacity));
+        }
+    }
 
     /* Build part number string from unique module part numbers */
     char *pn_buf = out->memory.part_number;
@@ -1266,6 +1292,8 @@ char *backend_read_debug_dump(void)
         backend_read_summary(&s);
         const dram_timings_t *d = &s.dram;
         DUMP("Refresh mode:         %s  (FGR field %u)\n", d->refresh_mode, d->fgr);
+        DUMP("BGS:                  %s  (0x%08X)\n", d->bgs_enabled ? "Enabled" : "Disabled", d->bgs_raw);
+        DUMP("BGS Alt:              %s  (0x%08X)\n", d->bgs_alt_enabled ? "Enabled" : "Disabled", d->bgs_alt_raw);
         DUMP("Nitro Rx/Tx/Ctrl:     %u/%u/%u  (modes %u/%u/%u)\n",
              d->nitro_rx, d->nitro_tx, d->nitro_ctrl, d->nitro_rx_mode, d->nitro_tx_mode, d->nitro_ctrl_mode);
         DUMP("tCCD_L_WR2 raw:       %u\n", d->ccdl_wr2);

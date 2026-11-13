@@ -45,6 +45,7 @@ private:
 
     /* RAM tab — DIMM info */
     QLabel *lbl_capacity = nullptr, *lbl_manufacturer = nullptr, *lbl_part_number = nullptr;
+    QLabel *lbl_total_capacity = nullptr;
     QLabel *lbl_serial_number = nullptr, *lbl_rank = nullptr, *lbl_cmd2t = nullptr;
 
     /* RAM tab — Voltages */
@@ -80,6 +81,7 @@ private:
 
     /* Controller config + per-channel PHY (what the UMC was programmed with) */
     QLabel *lbl_phy_match = nullptr, *lbl_refresh_mode = nullptr, *lbl_nitro = nullptr;
+    QLabel *lbl_bgs = nullptr, *lbl_bgs_alt = nullptr;
     QLabel *lbl_ccdl_wr2 = nullptr, *lbl_rdpost = nullptr, *lbl_wrpost = nullptr, *lbl_ppd = nullptr;
     QLabel *lbl_zqcs = nullptr, *lbl_odts_ri = nullptr, *lbl_pdd = nullptr;
     QLabel *lbl_stab = nullptr, *lbl_srx2srx = nullptr;
