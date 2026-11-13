@@ -15,13 +15,13 @@
 
 # ryzen_smu has no release tags; pin a known-good upstream commit here. This is
 # the single source of truth: install.sh --rpm fetches Source0 from this spec.
-%global commit      0bb95d961664c7a0ac180f849fa16fe7da71922d
+%global commit      d2983668300dd2a598e5a7dc40e71ce0678cc270
 %global shortcommit %(c=%{commit}; echo ${c:0:7})
 # Date the pinned commit last modified the source (its commit date). Upstream
 # has never tagged a release, so per the Fedora Versioning Guidelines this is a
 # snapshot: Version is "0" (no upstream version) plus the "^<date>git<rev>"
 # snapshot field. Bump this together with the commit above.
-%global snapdate    20260425
+%global snapdate    20260815
 
 Name:           %{kmod_name}-kmod
 Version:        0^%{snapdate}git%{shortcommit}
@@ -89,5 +89,9 @@ done
 %license %{kmod_name}-%{commit}/LICENSE
 
 %changelog
+* Fri Nov 13 2026 René Onier <f3nr1l@icloud.com> - 0^20260815gitd298366-1
+- Bump to upstream d298366 to fix build on kernel >= 7.2 (cpuid_eax/cpuid_ebx
+  now live in <asm/cpuid/api.h>)
+
 * Thu Jun 25 2026 Timothy Redaelli <timothy.redaelli@gmail.com> - 0^20260425git0bb95d9-1
 - Initial akmods packaging (pinned upstream commit 0bb95d9)
