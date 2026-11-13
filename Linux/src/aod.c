@@ -104,6 +104,13 @@ void aod_read_resistances(int mclk_mhz, dram_resistances_t *out)
 {
     static uint8_t blob[AOD_BLOB_MAX];
     memset(out, 0, sizeof(*out));
+    /* Codes are unsigned impedances; -1 means "no value" so the UI can dash it. */
+    out->cad_bus_ds = out->proc_odt = out->proc_odt_pd = -1;
+    out->proc_dq_ds = out->proc_dq_ds_pd = -1;
+    out->dram_dq_ds = out->dram_dq_ds_pd = -1;
+    out->proc_cs_ds = out->proc_ck_ds = -1;
+    out->rtt_nom_wr = out->rtt_nom_rd = out->rtt_wr = -1;
+    out->rtt_park = out->rtt_park_dqs = -1;
     out->anchor = -1;
     out->mclk = mclk_mhz;
     out->patch_level = read_patch_level();
@@ -187,7 +194,9 @@ const char *aod_rtt_name(int code)
 {
     /* RttDict: 0 = Off, 1..7 = RZQ/1..RZQ/7 over the 240 ohm RZQ reference. */
     static char buf[32];
-    if (code <= 0 || code > 7) return code < 0 ? "—" : "?";
+    if (code < 0) return "—";
+    if (code == 0) return "Off";
+    if (code > 7) return "?";
     const double ohm = 240.0 / (double)code;
     snprintf(buf, sizeof(buf), "RZQ/%d (%.0f Ω)", code, ohm);
     return buf;

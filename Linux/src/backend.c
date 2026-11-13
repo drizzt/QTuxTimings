@@ -1073,9 +1073,12 @@ void backend_read_summary(system_summary_t *out)
 
     /* AOD carries what the BIOS trained: drive strengths and termination.
      * Only the Zen5 DDR5 layout (Granite Ridge / Turin) is decoded here. */
+    /* AOD carries one record per trained frequency, keyed on MCLK in MHz.
+     * frequency_hint_mhz is MT/s, so take MCLK from the PM table and halve
+     * the MT/s hint as the fallback. */
     if (mem_type_for_codename(codename_idx) == MEM_DDR5) {
-        int mclk = (int)(out->dram.frequency_hint_mhz + 0.5f);
-        if (mclk <= 0) mclk = (int)(out->metrics.mclk_mhz + 0.5f);
+        int mclk = (int)(out->metrics.mclk_mhz + 0.5f);
+        if (mclk <= 0) mclk = (int)(out->dram.frequency_hint_mhz / 2.0f + 0.5f);
         aod_read_resistances(mclk, &out->resistances);
     }
 
