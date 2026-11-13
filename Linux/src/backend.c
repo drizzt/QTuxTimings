@@ -1,6 +1,7 @@
 #include "backend.h"
 #include "pm_table.h"
 #include "dram.h"
+#include "apob.h"
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -1364,6 +1365,22 @@ char *backend_read_debug_dump(void)
         DUMP("%-16s %-10u %-10u %s\n", "tPHYWRD", d->phy_wrd, d->phy_wrd_b, d->phy_wrd == d->phy_wrd_b ? "yes" : "NO");
         DUMP("%-16s %-10u %-10u %s\n", "tRDWR",   d->rdwr,    d->rdwr_b,    d->rdwr == d->rdwr_b ? "yes" : "NO");
         DUMP("%-16s %-10u %-10u %s\n", "tWRRD",   d->wrrd,    d->wrrd_b,    d->wrrd == d->wrrd_b ? "yes" : "NO");
+    }
+
+    /* ── APOB: the trained per-channel memory configuration ────────── */
+    DUMP("\n=== APOB (AGESA PSP Output Block) ===\n");
+    {
+        apob_block_t ab;
+        if (!apob_load(&ab)) {
+            DUMP("(not found: %s)\n", ab.note);
+        } else {
+            DUMP("physical 0x%llX  version %u  table_size %u  header_size %u  (%s)\n",
+                 (unsigned long long)ab.address, ab.version, ab.table_size, ab.header_size, ab.note);
+            DUMP("header words @16:");
+            for (size_t o = 16; o + 4 <= ab.header_size && o < 16 + 12 * 4; o += 4)
+                DUMP(" 0x%X", apob_u32(&ab, o));
+            DUMP("\n");
+        }
     }
 
 #undef DUMP
