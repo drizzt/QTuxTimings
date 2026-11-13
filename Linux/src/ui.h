@@ -45,6 +45,7 @@ private:
 
     /* RAM tab — DIMM info */
     QLabel *lbl_capacity = nullptr, *lbl_manufacturer = nullptr, *lbl_part_number = nullptr;
+    QLabel *lbl_total_capacity = nullptr;
     QLabel *lbl_serial_number = nullptr, *lbl_rank = nullptr, *lbl_cmd2t = nullptr;
 
     /* RAM tab — Voltages */
@@ -68,6 +69,29 @@ private:
     QLabel *lbl_rdrd_scl = nullptr, *lbl_wrwr_scl = nullptr, *lbl_cke = nullptr, *lbl_xp = nullptr;
     QLabel *lbl_trc_page = nullptr, *lbl_mod = nullptr, *lbl_mod_pda = nullptr, *lbl_mrd = nullptr, *lbl_mrd_pda = nullptr;
     QLabel *lbl_stag = nullptr, *lbl_stag_sb = nullptr, *lbl_phy_wrl = nullptr, *lbl_phy_rdl = nullptr, *lbl_phy_wrd = nullptr;
+
+    /* Termination / drive strength (AOD, what the BIOS trained) */
+    QLabel *lbl_proc_odt = nullptr, *lbl_proc_odt_pd = nullptr;
+    QLabel *lbl_proc_dq_ds = nullptr, *lbl_proc_dq_ds_pd = nullptr;
+    QLabel *lbl_dram_dq_ds = nullptr, *lbl_dram_dq_ds_pd = nullptr;
+    QLabel *lbl_proc_cs_ds = nullptr, *lbl_proc_ck_ds = nullptr, *lbl_cad_bus_ds = nullptr;
+    QLabel *lbl_rtt_nom_wr = nullptr, *lbl_rtt_nom_rd = nullptr, *lbl_rtt_wr = nullptr;
+    QLabel *lbl_rtt_park = nullptr, *lbl_rtt_park_dqs = nullptr;
+    QLabel *lbl_term_note = nullptr;
+
+    /* APOB: per-channel ODT groups and Vrefs (Termination / Drive rows) */
+    QLabel *lbl_ca_odt_a = nullptr, *lbl_ck_odt_a = nullptr, *lbl_cs_odt_a = nullptr;
+    QLabel *lbl_phy_vref = nullptr, *lbl_vref_dq = nullptr, *lbl_vref_ca = nullptr, *lbl_vref_cs = nullptr;
+
+    /* Controller config + per-channel PHY (what the UMC was programmed with) */
+    QLabel *lbl_phy_match = nullptr, *lbl_refresh_mode = nullptr, *lbl_nitro = nullptr;
+    QLabel *lbl_bgs = nullptr, *lbl_bgs_alt = nullptr;
+    QLabel *lbl_ccdl_wr2 = nullptr, *lbl_rdpost = nullptr, *lbl_wrpost = nullptr, *lbl_ppd = nullptr;
+    QLabel *lbl_zqcs = nullptr, *lbl_odts_ri = nullptr, *lbl_pdd = nullptr;
+    QLabel *lbl_stab = nullptr, *lbl_srx2srx = nullptr;
+    QLabel *lbl_lpdly = nullptr, *lbl_lpexit = nullptr;
+    QLabel *lbl_rd_gap = nullptr, *lbl_wr_gap = nullptr;
+    QLabel *lbl_burst_len = nullptr, *lbl_max_rate = nullptr, *lbl_umc_scope = nullptr;
 
     /* RAM tab — Footer */
     QLabel *lbl_footer_type = nullptr;

@@ -165,6 +165,7 @@ QWidget *MainWindow::build_ram_tab()
         QGridLayout *g = new_grid(2, 8);
         int r = 0;
         grid_row(g, r++, "Capacity:", &lbl_capacity);
+        grid_row(g, r++, "Total:", &lbl_total_capacity);
         grid_row(g, r++, "Manufacturer:", &lbl_manufacturer);
         grid_row(g, r++, "Part Number:", &lbl_part_number);
         grid_row(g, r++, "Serial:", &lbl_serial_number);
@@ -276,18 +277,69 @@ QWidget *MainWindow::build_ram_tab()
         grid_row(g, r++, "tMRDPDA", &lbl_mrd_pda);
         grid_row(g, r++, "tSTAG", &lbl_stag);
         grid_row(g, r++, "tSTAGsb", &lbl_stag_sb);
-        grid_row(g, r++, "tPHYWRL", &lbl_phy_wrl);
-        grid_row(g, r++, "tPHYRDL", &lbl_phy_rdl);
-        grid_row(g, r++, "tPHYWRD", &lbl_phy_wrd);
+        grid_row(g, r++, "tPHYWRL A/B", &lbl_phy_wrl);
+        grid_row(g, r++, "tPHYRDL A/B", &lbl_phy_rdl);
+        grid_row(g, r++, "tPHYWRD A/B", &lbl_phy_wrd);
+        grid_row(g, r++, "PHY A = B", &lbl_phy_match);
+        grid_row(g, r++, "Refresh", &lbl_refresh_mode);
+        grid_row(g, r++, "BGS", &lbl_bgs);
+        grid_row(g, r++, "BGS Alt", &lbl_bgs_alt);
+        grid_row(g, r++, "Nitro (Rx/Tx/Ctrl)", &lbl_nitro);
+        grid_row(g, r++, "tCCD_L_WR2", &lbl_ccdl_wr2);
+        grid_row(g, r++, "RDPOST", &lbl_rdpost);
+        grid_row(g, r++, "WRPOST", &lbl_wrpost);
+        grid_row(g, r++, "PPD", &lbl_ppd);
+        grid_row(g, r++, "ZQCS interval", &lbl_zqcs);
+        grid_row(g, r++, "OdtsReadInterval", &lbl_odts_ri);
+        grid_row(g, r++, "PwrDownDly", &lbl_pdd);
+        grid_row(g, r++, "STAB", &lbl_stab);
+        grid_row(g, r++, "SRX2SRX", &lbl_srx2srx);
+        grid_row(g, r++, "LpDly / Exit", &lbl_lpdly);
+        grid_row(g, r++, "Rd / Wr BrstGap", &lbl_rd_gap);
+        grid_row(g, r++, "BurstLength", &lbl_burst_len);
+        grid_row(g, r++, "DdrMaxRate", &lbl_max_rate);
+        grid_row(g, r++, "UMC scope", &lbl_umc_scope);
         box->addLayout(g);
         box->addStretch(1);
         mid->addWidget(tert_box, 1);
+    }
+    /* Termination / Drive (AOD) */
+    {
+        QVBoxLayout *box;
+        QFrame *term_box = make_section_box(&box);
+        box->addWidget(make_label("Termination / Drive", "section-title"));
+        QGridLayout *g = new_grid(2, 8);
+        int r = 0;
+        grid_row(g, r++, "ProcODT", &lbl_proc_odt);
+        grid_row(g, r++, "ProcODT pd", &lbl_proc_odt_pd);
+        grid_row(g, r++, "Proc DQ DS", &lbl_proc_dq_ds);
+        grid_row(g, r++, "Proc DQ DS pd", &lbl_proc_dq_ds_pd);
+        grid_row(g, r++, "DRAM DQ DS", &lbl_dram_dq_ds);
+        grid_row(g, r++, "DRAM DQ DS pd", &lbl_dram_dq_ds_pd);
+        grid_row(g, r++, "Proc CS DS", &lbl_proc_cs_ds);
+        grid_row(g, r++, "Proc CK DS", &lbl_proc_ck_ds);
+        grid_row(g, r++, "ProcCaDs", &lbl_cad_bus_ds);
+        grid_row(g, r++, "Rtt Nom Wr", &lbl_rtt_nom_wr);
+        grid_row(g, r++, "Rtt Nom Rd", &lbl_rtt_nom_rd);
+        grid_row(g, r++, "Rtt Wr", &lbl_rtt_wr);
+        grid_row(g, r++, "Rtt Park", &lbl_rtt_park);
+        grid_row(g, r++, "Rtt Park Dqs", &lbl_rtt_park_dqs);
+        grid_row(g, r++, "CA ODT A/B", &lbl_ca_odt_a);
+        grid_row(g, r++, "CK ODT A/B", &lbl_ck_odt_a);
+        grid_row(g, r++, "CS ODT A/B", &lbl_cs_odt_a);
+        grid_row(g, r++, "PhyVref", &lbl_phy_vref);
+        grid_row(g, r++, "VrefDQ", &lbl_vref_dq);
+        grid_row(g, r++, "VrefCA", &lbl_vref_ca);
+        grid_row(g, r++, "VrefCS", &lbl_vref_cs);
+        box->addLayout(g);
+        box->addStretch(1);
+        mid->addWidget(term_box, 1);
     }
     vbox->addLayout(mid, 1);
 
     /* Footer */
     QHBoxLayout *footer = new QHBoxLayout();
-    QLabel *footer_text = make_label("DRAM timings & MCLK/UCLK: SMN. Voltages & FCLK: PM table.", "footer-muted");
+    QLabel *footer_text = make_label("DRAM timings & MCLK/UCLK: SMN. Voltages & FCLK: PM table. Termination: AOD.", "footer-muted");
     lbl_footer_type = make_label("DDR5", "value-highlight");
     footer->addWidget(footer_text, 1);
     footer->addWidget(lbl_footer_type);
@@ -547,6 +599,22 @@ void MainWindow::on_module_changed(int index)
 
 /* ── Refresh data → UI ──────────────────────────────────────────────── */
 
+/* Renders an AOD resistance: decoded impedance with the raw AOD code beside it,
+ * so the value can be checked against ZenTimings and typed back into BIOS. */
+static void set_term(QLabel *lbl, const char *decoded, int code)
+{
+    if (code < 0 || !decoded) set_label_text(lbl, "—");
+    else set_label_fmt(lbl, "%s  [%d]", decoded, code);
+}
+
+/* ZenTimings shows the command-bus terminators as a Group A / Group B pair;
+ * the app's idiom for a per-channel pair is one row, so render "A / B". */
+static void set_apob_odt(QLabel *lbl, int a, int b)
+{
+    if (a < 0 && b < 0) set_label_text(lbl, "—");
+    else set_label_fmt(lbl, "%s / %s", apob_group_odt_name(a), apob_group_odt_name(b));
+}
+
 void MainWindow::refresh()
 {
     setlocale(LC_NUMERIC, "C");
@@ -598,6 +666,7 @@ void MainWindow::refresh()
     if (mi >= 0 && mi < s->module_count) {
         const memory_module_t *mod = &s->modules[mi];
         set_label_text(lbl_capacity, mod->capacity_display);
+        set_label_text(lbl_total_capacity, s->memory.total_capacity[0] ? s->memory.total_capacity : "—");
         set_label_text(lbl_manufacturer, mod->manufacturer[0] ? mod->manufacturer : "—");
         set_label_text(lbl_part_number, mod->part_number[0] ? mod->part_number : "—");
         set_label_text(lbl_serial_number, mod->serial_number[0] ? mod->serial_number : "—");
@@ -618,7 +687,13 @@ void MainWindow::refresh()
     SET_VOLT(lbl_vdd_misc, m->vdd_misc);
     SET_VOLT(lbl_mem_vdd,  m->mem_vdd);
     SET_VOLT(lbl_mem_vddq, m->mem_vddq);
-    SET_VOLT(lbl_cpu_vddio, m->cpu_vddio);
+    /* CPU VDDIO carries its source: on desktop AM5 the Super-IO channel is
+     * often unlabeled, and the value shown is then the AOD programmed rail. */
+    if (m->cpu_vddio > 0)
+        set_label_fmt(lbl_cpu_vddio, "%.4fV  (%s)", (double)m->cpu_vddio,
+                      m->cpu_vddio_src[0] ? m->cpu_vddio_src : "AOD");
+    else
+        set_label_text(lbl_cpu_vddio, "—");
     SET_VOLT(lbl_mem_vpp,  m->mem_vpp);
     SET_VOLT(lbl_vcore,    m->vcore);
     set_label_fmt(lbl_ppt, "%.1fW", m->ppt_w);
@@ -669,9 +744,60 @@ void MainWindow::refresh()
     set_label_fmt(lbl_mrd_pda, "%u", d->mrd_pda);
     set_label_fmt(lbl_stag, "%u", d->stag);
     set_label_fmt(lbl_stag_sb, "%u", d->stag_sb);
-    set_label_fmt(lbl_phy_wrl, "%u", d->phy_wrl);
-    set_label_fmt(lbl_phy_rdl, "%u", d->phy_rdl);
-    set_label_fmt(lbl_phy_wrd, "%u", d->phy_wrd);
+    set_label_fmt(lbl_phy_wrl, "%u / %u", d->phy_wrl, d->phy_wrl_b);
+    set_label_fmt(lbl_phy_rdl, "%u / %u", d->phy_rdl, d->phy_rdl_b);
+    set_label_fmt(lbl_phy_wrd, "%u / %u", d->phy_wrd, d->phy_wrd_b);
+    set_label_text(lbl_phy_match, d->phy_matched ? "yes" : "no — try ARdPtrInitVal");
+    set_label_text(lbl_refresh_mode, d->refresh_mode[0] ? d->refresh_mode : "—");
+    set_label_fmt(lbl_bgs, "%s", d->bgs_enabled ? "Enabled" : "Disabled");
+    set_label_fmt(lbl_bgs_alt, "%s", d->bgs_alt_enabled ? "Enabled" : "Disabled");
+    set_label_fmt(lbl_nitro, "%u/%u/%u", d->nitro_rx, d->nitro_tx, d->nitro_ctrl);
+    set_label_fmt(lbl_ccdl_wr2, "%u", d->ccdl_wr2);
+    set_label_fmt(lbl_rdpost, "%u", d->rdpost);
+    set_label_fmt(lbl_wrpost, "%u", d->wrpost);
+    set_label_fmt(lbl_ppd, "%u", d->ppd);
+    set_label_fmt(lbl_zqcs, "%u", d->zqcs_interval);
+    set_label_fmt(lbl_odts_ri, "%u", d->odts_read_interval);
+    set_label_fmt(lbl_pdd, "%u", d->pwr_down_dly);
+    set_label_fmt(lbl_stab, "%u", d->stab);
+    set_label_fmt(lbl_srx2srx, "%u", d->srx2srx);
+    set_label_fmt(lbl_lpdly, "%u / %u", d->lp_dly, d->lp_exit_dly);
+    set_label_fmt(lbl_rd_gap, "%u / %u", d->rd_brst_gap, d->wr_brst_gap);
+    set_label_fmt(lbl_burst_len, "%u", d->burst_length);
+    set_label_fmt(lbl_max_rate, "%u", d->ddr_max_rate);
+    set_label_fmt(lbl_umc_scope, "%s",
+                  d->umc_mirrors == 3 ? "A,B + mirrors" : d->umc_mirrors ? "A,B + 1 mirror" : "A,B");
+
+    /* Termination / drive strength — read from the AOD table the BIOS wrote */
+    {
+        const dram_resistances_t *rz = &s->resistances;
+        set_term(lbl_proc_odt,      aod_proc_odt_name(rz->proc_odt),      rz->proc_odt);
+        set_term(lbl_proc_odt_pd,   aod_proc_odt_name(rz->proc_odt_pd),   rz->proc_odt_pd);
+        set_term(lbl_proc_dq_ds,    aod_proc_odt_name(rz->proc_dq_ds),    rz->proc_dq_ds);
+        set_term(lbl_proc_dq_ds_pd, aod_proc_odt_name(rz->proc_dq_ds_pd), rz->proc_dq_ds_pd);
+        set_term(lbl_dram_dq_ds,    aod_dram_dq_ds_name(rz->dram_dq_ds),  rz->dram_dq_ds);
+        set_term(lbl_dram_dq_ds_pd, aod_dram_dq_ds_name(rz->dram_dq_ds_pd), rz->dram_dq_ds_pd);
+        set_term(lbl_proc_cs_ds,    aod_cad_bus_name(rz->proc_cs_ds),     rz->proc_cs_ds);
+        set_term(lbl_proc_ck_ds,    aod_cad_bus_name(rz->proc_ck_ds),     rz->proc_ck_ds);
+        set_term(lbl_cad_bus_ds,    aod_cad_bus_name(rz->cad_bus_ds),     rz->cad_bus_ds);
+        set_term(lbl_rtt_nom_wr,    aod_rtt_name(rz->rtt_nom_wr),         rz->rtt_nom_wr);
+        set_term(lbl_rtt_nom_rd,    aod_rtt_name(rz->rtt_nom_rd),         rz->rtt_nom_rd);
+        set_term(lbl_rtt_wr,        aod_rtt_name(rz->rtt_wr),             rz->rtt_wr);
+        set_term(lbl_rtt_park,      aod_rtt_name(rz->rtt_park),           rz->rtt_park);
+        set_term(lbl_rtt_park_dqs,  aod_rtt_name(rz->rtt_park_dqs),       rz->rtt_park_dqs);
+
+        /* APOB: per-channel command-bus terminators and the read thresholds */
+        {
+            const apob_mem_config_t *ap = &s->apob;
+            set_apob_odt(lbl_ca_odt_a, ap->ca_odt_a, ap->ca_odt_b);
+            set_apob_odt(lbl_ck_odt_a, ap->ck_odt_a, ap->ck_odt_b);
+            set_apob_odt(lbl_cs_odt_a, ap->cs_odt_a, ap->cs_odt_b);
+            set_term(lbl_phy_vref, apob_phy_vref_name(ap->phy_vref),       ap->phy_vref);
+            set_term(lbl_vref_dq,  apob_vref_dq_name(ap->dram_vref_dq),    ap->dram_vref_dq);
+            set_term(lbl_vref_ca,  apob_vref_dq_name(ap->dram_vref_ca),    ap->dram_vref_ca);
+            set_term(lbl_vref_cs,  apob_vref_dq_name(ap->dram_vref_cs),    ap->dram_vref_cs);
+        }
+    }
 
     /* Footer mem type */
     const char *mem_str = s->memory.type == MEM_DDR5 ? "DDR5" :

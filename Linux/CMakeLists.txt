@@ -22,6 +22,8 @@ find_library(GMP_LIBRARY NAMES gmp REQUIRED)
 # C backend (pure C, no Qt). Listed explicitly rather than globbed so a stray
 # .c file under src/ can't be silently pulled into the build.
 set(BACKEND_SOURCES
+    src/aod.c
+    src/apob.c
     src/backend.c
     src/bench.c
     src/dram.c

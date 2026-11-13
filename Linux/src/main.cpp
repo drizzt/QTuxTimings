@@ -135,6 +135,17 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* --dump: print the debug dump and exit. Useful headless, and for diffing
+     * a profile between boots without opening the window. */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--dump") == 0) {
+            char *text = backend_read_debug_dump();
+            if (text) { fputs(text, stdout); fflush(stdout); free(text); }
+            backend_cleanup();
+            return 0;
+        }
+    }
+
     QApplication app(argc, argv);
 
     /* Force C locale for numeric formatting (dots, not commas).

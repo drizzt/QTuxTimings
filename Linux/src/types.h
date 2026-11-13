@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "aod.h"
+#include "apob.h"
+
 #define MAX_CORES       16
 #define MAX_MODULES     4
 #define MAX_FANS        8
@@ -59,6 +62,7 @@ typedef struct {
     /* Voltages */
     float vcore, vsoc, vddp, vddg_ccd, vddg_iod, vdd_misc;
     float cpu_vddio, mem_vdd, mem_vddq, mem_vpp;
+    char cpu_vddio_src[24];   /* which source produced cpu_vddio (Super-IO / AOD …) */
     float vid;
     /* Clocks */
     float core_clock_mhz, bclk_mhz; /* reserved */
@@ -101,6 +105,27 @@ typedef struct {
     uint32_t trc_page, mod, mod_pda, mrd, mrd_pda;
     uint32_t stag, stag_sb, cke, xp;
     uint32_t phy_wrd, phy_wrl, phy_rdl;
+    /* Channel B (UMC1): the PHY rows are the ones that train per channel, and
+     * a match between A and B is what a 4-DIMM read train is judged by. */
+    uint32_t phy_rdl_b, phy_wrl_b, phy_wrd_b;
+    uint32_t rdwr_b, wrrd_b;          /* channel B turnarounds */
+    uint32_t umc_mirrors;              /* extra UMC instances seen (0x40000/0x50000) */
+    bool     phy_matched;              /* A == B on rdl, wrl and wrd */
+    /* Controller config (0x5012C, 0x50284, 0x502A4, ...) */
+    char refresh_mode[12];             /* Normal | FGR | Mixed | PbOnly */
+    uint32_t fgr;
+    uint32_t nitro_rx, nitro_tx, nitro_ctrl;        /* the 2-bit delay steps */
+    uint32_t nitro_rx_mode, nitro_tx_mode, nitro_ctrl_mode; /* the DlyMode bits */
+    uint32_t rdpost, wrpost;           /* postambles, MR8 side of 0x502A4 */
+    uint32_t ppd, ccdl_wr2;
+    uint32_t zqcs_interval, tzqcs, odts_read_interval;
+    uint32_t pwr_down_dly, csh, stab, srx2srx;
+    uint32_t lp_dly, lp_exit_dly;
+    uint32_t rd_brst_gap, wr_brst_gap;
+    uint32_t burst_length, ddr_max_rate;
+    /* Bank Group Scramble / Scatter (0x50050, 0x50058, 0x500D0, 0x500D4) */
+    bool bgs_enabled, bgs_alt_enabled;
+    uint32_t bgs_raw, bgs_alt_raw;
     /* RFC */
     uint32_t rfc, rfc2, rfcsb;
     /* Nanoseconds */
@@ -125,6 +150,8 @@ typedef struct {
     int module_count;
     smu_metrics_t metrics;
     dram_timings_t dram;
+    dram_resistances_t resistances;
+    apob_mem_config_t apob;
     fan_reading_t fans[MAX_FANS];
     int fan_count;
 } system_summary_t;

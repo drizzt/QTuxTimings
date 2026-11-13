@@ -2,7 +2,11 @@
 
 <p align="center">Qt6 port of <a href="https://github.com/Death4two/TuxTimings">TuxTimings</a> — AMD Ryzen DRAM timings and CPU telemetry viewer.</p>
 
-![QTuxTimings](screenshot.png "QTuxTimings")
+
+
+<img width="754" height="1066" alt="image" src="https://github.com/user-attachments/assets/255dd138-48e1-4bea-999c-561fd94a328e" />
+
+
 
 ### Supported CPUs
 

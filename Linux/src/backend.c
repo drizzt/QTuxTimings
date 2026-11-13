@@ -1,6 +1,7 @@
 #include "backend.h"
 #include "pm_table.h"
 #include "dram.h"
+#include "apob.h"
 #include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <math.h>
+#include <glob.h>
+#include <strings.h>
 
 #define SMU_PATH "/sys/kernel/ryzen_smu_drv"
 
@@ -409,8 +412,49 @@ static void read_agesa_version(void)
     }
 }
 
-/* ── Total memory from /proc/meminfo ────────────────────────────────── */
+/* ZenTimings resolves CPU VDDIO by Super-IO sensor *name*, not by channel
+ * index — the channel numbering differs per board. Same name list, same order
+ * (WPF/ViewModels/MainViewModel.cs ApuVddioSensorNames). Returns mV, 0 if none. */
+static int hwmon_vddio_mv(void)
+{
+    static const char *names[] = { "CPU VDDIO", "VDIMM", "VDDIO", "CPU VDDIO Memory", "VDDIO_MEM" };
+    glob_t g;
+    int mv = 0;
+    if (glob("/sys/class/hwmon/hwmon*/in*_label", 0, NULL, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc && !mv; i++) {
+            char lab[64];
+            if (!read_file_string(g.gl_pathv[i], lab, sizeof(lab))) continue;
+            for (size_t k = 0; k < sizeof(names) / sizeof(*names); k++) {
+                if (strcasecmp(lab, names[k]) != 0) continue;
+                char inp[512];
+                snprintf(inp, sizeof(inp), "%s_input", g.gl_pathv[i]);
+                int v = read_int_file(inp);
+                if (v > 500 && v < 3000) { mv = v; break; }
+            }
+        }
+        globfree(&g);
+    }
+    return mv;
+}
 
+/* 1) Super-IO sensor (what ZenTimings shows on Windows), 2) AOD ApuVddio.
+ * Both are the SoC-side VDDIO; the DIMM-side MemVddio is a different rail, so
+ * it is not used as a fallback — an em dash is the honest answer when the
+ * programmed value is only in APOB's profile record and that record is empty. */
+static void read_vddio(smu_metrics_t *m, char *src, size_t sz)
+{
+    int mv = hwmon_vddio_mv();
+    if (mv) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "Super-IO"); return; }
+
+    mv = read_int_file("/sys/kernel/aod_voltages/cpu_vddio");
+    if (mv > 500 && mv < 3000) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "AOD"); return; }
+
+    m->cpu_vddio = 0.0f;
+    snprintf(src, sz, "—");
+}
+
+
+/* ── Total memory from /proc/meminfo ────────────────────────────────── */
 static void read_total_memory(char *buf, size_t sz)
 {
     FILE *f = fopen("/proc/meminfo", "r");
@@ -1055,8 +1099,16 @@ void backend_read_summary(system_summary_t *out)
         if (mv > 500 && mv < 3000) out->metrics.mem_vddq   = mv / 1000.0f;
         mv = read_int_file("/sys/kernel/aod_voltages/mem_vpp");
         if (mv > 500 && mv < 3000) out->metrics.mem_vpp    = mv / 1000.0f;
-        mv = read_int_file("/sys/kernel/aod_voltages/cpu_vddio");
-        if (mv > 500 && mv < 3000) out->metrics.cpu_vddio  = mv / 1000.0f;
+        read_vddio(&out->metrics, out->metrics.cpu_vddio_src,
+                   sizeof(out->metrics.cpu_vddio_src));
+    }
+
+    /* APOB: the trained per-channel ODT groups, Vrefs and programmed rails.
+     * The block is cached in apob.c, so this is cheap after the first refresh. */
+    apob_read_mem_config(&out->apob);
+    if (out->apob.valid && out->apob.vddio_mv > 500) {
+        out->metrics.cpu_vddio = out->apob.vddio_mv / 1000.0f;
+        snprintf(out->metrics.cpu_vddio_src, sizeof(out->metrics.cpu_vddio_src), "APOB");
     }
 
     /* hwmon overlays */
@@ -1070,6 +1122,17 @@ void backend_read_summary(system_summary_t *out)
 
     /* DRAM timings */
     dram_read_timings(codename_idx, &out->dram);
+
+    /* AOD carries what the BIOS trained: drive strengths and termination.
+     * Only the Zen5 DDR5 layout (Granite Ridge / Turin) is decoded here. */
+    /* AOD carries one record per trained frequency, keyed on MCLK in MHz.
+     * frequency_hint_mhz is MT/s, so take MCLK from the PM table and halve
+     * the MT/s hint as the fallback. */
+    if (mem_type_for_codename(codename_idx) == MEM_DDR5) {
+        int mclk = (int)(out->metrics.mclk_mhz + 0.5f);
+        if (mclk <= 0) mclk = (int)(out->dram.frequency_hint_mhz / 2.0f + 0.5f);
+        aod_read_resistances(mclk, &out->resistances);
+    }
 
     /* Memory config */
     out->memory.type = mem_type_for_codename(codename_idx);
@@ -1093,7 +1156,33 @@ void backend_read_summary(system_summary_t *out)
             mem_freq = (float)max_cfg;
     }
     out->memory.frequency = mem_freq;
-    read_total_memory(out->memory.total_capacity, sizeof(out->memory.total_capacity));
+    /* Total kit capacity, the way ZenTimings reports it: the sum of the
+     * populated DIMMs, not what the OS has left to allocate. */
+    {
+        uint64_t sum = 0, each = 0;
+        int n = 0;
+        bool uniform = true;
+        for (int i = 0; i < s_module_count; i++) {
+            uint64_t c = s_modules[i].capacity_bytes;
+            if (!c) continue;
+            if (!each) each = c;
+            else if (each != c) uniform = false;
+            sum += c;
+            n++;
+        }
+        if (n > 0) {
+            double gib = (double)sum / (1024.0 * 1024.0 * 1024.0);
+            if (uniform && n > 1)
+                snprintf(out->memory.total_capacity, sizeof(out->memory.total_capacity),
+                         "%.0f GiB  (%d × %.0f GiB)", gib, n,
+                         (double)each / (1024.0 * 1024.0 * 1024.0));
+            else
+                snprintf(out->memory.total_capacity, sizeof(out->memory.total_capacity),
+                         "%.1f GiB  (%d DIMM%s)", gib, n, n > 1 ? "s" : "");
+        } else {
+            read_total_memory(out->memory.total_capacity, sizeof(out->memory.total_capacity));
+        }
+    }
 
     /* Build part number string from unique module part numbers */
     char *pn_buf = out->memory.part_number;
@@ -1213,6 +1302,119 @@ char *backend_read_debug_dump(void)
             free(t);
         } else {
             DUMP("(PM table unavailable)\n");
+        }
+    }
+
+    /* ── AOD termination / drive strength (what the BIOS trained) ──── */
+    DUMP("\n=== AOD Termination & Drive Strength ===\n");
+    {
+        system_summary_t s;
+        backend_read_summary(&s);
+        const dram_resistances_t *r = &s.resistances;
+        if (!r->valid) {
+            DUMP("(AOD unavailable: %s)\n", r->source);
+        } else {
+            DUMP("source=%s  anchor=0x%X  MCLK=%d  patch=0x%08X  layout=%s\n",
+                 r->source, (unsigned)r->anchor, r->mclk, (unsigned)r->patch_level,
+                 r->new_layout ? (r->rmp_layout ? "1Ah new (RMP)" : "1Ah new (no RMP)")
+                               : "1Ah legacy");
+            DUMP("%-24s %-16s %s\n", "Field", "Decode", "Raw code");
+            DUMP("%-24s %-16s %s\n", "-----", "------", "--------");
+            DUMP("%-24s %-16s %d\n", "ProcODT (pull-up)",  aod_proc_odt_name(r->proc_odt),      r->proc_odt);
+            DUMP("%-24s %-16s %d\n", "ProcODT (pull-down)",aod_proc_odt_name(r->proc_odt_pd),    r->proc_odt_pd);
+            DUMP("%-24s %-16s %d\n", "Proc DQ drive (up)", aod_proc_odt_name(r->proc_dq_ds),     r->proc_dq_ds);
+            DUMP("%-24s %-16s %d\n", "Proc DQ drive (down)",aod_proc_odt_name(r->proc_dq_ds_pd), r->proc_dq_ds_pd);
+            DUMP("%-24s %-16s %d\n", "DRAM DQ drive (up)", aod_dram_dq_ds_name(r->dram_dq_ds),   r->dram_dq_ds);
+            DUMP("%-24s %-16s %d\n", "DRAM DQ drive (down)",aod_dram_dq_ds_name(r->dram_dq_ds_pd),r->dram_dq_ds_pd);
+            DUMP("%-24s %-16s %d\n", "Proc CS drive",      aod_cad_bus_name(r->proc_cs_ds),      r->proc_cs_ds);
+            DUMP("%-24s %-16s %d\n", "Proc CK drive",      aod_cad_bus_name(r->proc_ck_ds),      r->proc_ck_ds);
+            DUMP("%-24s %-16s %d\n", "CAD bus / CA drive", aod_cad_bus_name(r->cad_bus_ds),      r->cad_bus_ds);
+            DUMP("%-24s %-16s %d\n", "Rtt Nom Wr",         aod_rtt_name(r->rtt_nom_wr),          r->rtt_nom_wr);
+            DUMP("%-24s %-16s %d\n", "Rtt Nom Rd",         aod_rtt_name(r->rtt_nom_rd),          r->rtt_nom_rd);
+            DUMP("%-24s %-16s %d\n", "Rtt Wr",             aod_rtt_name(r->rtt_wr),              r->rtt_wr);
+            DUMP("%-24s %-16s %d\n", "Rtt Park",           aod_rtt_name(r->rtt_park),            r->rtt_park);
+            DUMP("%-24s %-16s %d\n", "Rtt Park Dqs",       aod_rtt_name(r->rtt_park_dqs),        r->rtt_park_dqs);
+        }
+    }
+
+    /* ── Controller config + per-channel PHY ───────────────────────── */
+    DUMP("\n=== UMC Config (channel A) ===\n");
+    {
+        system_summary_t s;
+        backend_read_summary(&s);
+        const dram_timings_t *d = &s.dram;
+        DUMP("CPU VDDIO:            %.4f V  (source: %s)\n", (double)s.metrics.cpu_vddio,
+             s.metrics.cpu_vddio_src[0] ? s.metrics.cpu_vddio_src : "none");
+        DUMP("Refresh mode:         %s  (FGR field %u)\n", d->refresh_mode, d->fgr);
+        DUMP("BGS:                  %s  (0x%08X)\n", d->bgs_enabled ? "Enabled" : "Disabled", d->bgs_raw);
+        DUMP("BGS Alt:              %s  (0x%08X)\n", d->bgs_alt_enabled ? "Enabled" : "Disabled", d->bgs_alt_raw);
+        DUMP("Nitro Rx/Tx/Ctrl:     %u/%u/%u  (modes %u/%u/%u)\n",
+             d->nitro_rx, d->nitro_tx, d->nitro_ctrl, d->nitro_rx_mode, d->nitro_tx_mode, d->nitro_ctrl_mode);
+        DUMP("tCCD_L_WR2 raw:       %u\n", d->ccdl_wr2);
+        DUMP("RDPOST/WRPOST:        %u / %u\n", d->rdpost, d->wrpost);
+        DUMP("RDPRE/WRPRE:          %u / %u\n", d->rdpre, d->wrpre);
+        DUMP("PPD:                  %u\n", d->ppd);
+        DUMP("ZQCS interval:        %u  (tZQCS %u)\n", d->zqcs_interval, d->tzqcs);
+        DUMP("OdtsReadInterval:     %u\n", d->odts_read_interval);
+        DUMP("PwrDownDly / CSH:     %u / %u\n", d->pwr_down_dly, d->csh);
+        DUMP("STAB / SRX2SRX:       %u / %u\n", d->stab, d->srx2srx);
+        DUMP("LpDly / LpExitDly:    %u / %u\n", d->lp_dly, d->lp_exit_dly);
+        DUMP("Rd/Wr BrstGap:        %u / %u\n", d->rd_brst_gap, d->wr_brst_gap);
+        DUMP("BurstLength code:     %u\n", d->burst_length);
+        DUMP("DdrMaxRate:           %u\n", d->ddr_max_rate);
+        DUMP("UMC mirrors:          0x%X\n", d->umc_mirrors);
+
+        DUMP("\n=== Channel A vs B (UMC0 vs UMC1) ===\n");
+        DUMP("%-16s %-10s %-10s %s\n", "row", "A", "B", "match");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYRDL", d->phy_rdl, d->phy_rdl_b, d->phy_rdl == d->phy_rdl_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYWRL", d->phy_wrl, d->phy_wrl_b, d->phy_wrl == d->phy_wrl_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYWRD", d->phy_wrd, d->phy_wrd_b, d->phy_wrd == d->phy_wrd_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tRDWR",   d->rdwr,    d->rdwr_b,    d->rdwr == d->rdwr_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tWRRD",   d->wrrd,    d->wrrd_b,    d->wrrd == d->wrrd_b ? "yes" : "NO");
+    }
+
+    /* ── APOB: the trained per-channel memory configuration ────────── */
+    DUMP("\n=== APOB (AGESA PSP Output Block) ===\n");
+    {
+        apob_block_t ab;
+        if (!apob_load(&ab)) {
+            DUMP("(not found: %s)\n", ab.note);
+        } else {
+            DUMP("physical 0x%llX  version %u  table_size %u  header_size %u  (%s)\n",
+                 (unsigned long long)ab.address, ab.version, ab.table_size, ab.header_size, ab.note);
+            DUMP("header words @16:");
+            for (size_t o = 16; o + 4 <= ab.header_size && o < 16 + 12 * 4; o += 4)
+                DUMP(" 0x%X", apob_u32(&ab, o));
+            DUMP("\n");
+
+            apob_entry_list_t el;
+            apob_walk_entries(&ab, &el);
+            DUMP("entries: %u\n", (unsigned)el.count);
+            for (size_t i = 0; i < el.count; i++)
+                DUMP("  [%2u] @0x%zX %u/%-2u inst %u size %-6u%s\n", (unsigned)i,
+                     el.v[i].off, el.v[i].group, el.v[i].type, el.v[i].instance, el.v[i].size,
+                     el.v[i].encrypted ? " (encrypted)" : "");
+
+            apob_mem_config_t mc;
+            apob_read_mem_config(&mc);
+            if (mc.valid) {
+                DUMP("record set: MEM/25 ch0 @0x%zX (%d ch), GEN/3 ext @0x%zX\n",
+                     mc.main_at, mc.channels, mc.ext_at);
+                DUMP("CA ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ca_odt_a), apob_group_odt_name(mc.ca_odt_b));
+                DUMP("CK ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ck_odt_a), apob_group_odt_name(mc.ck_odt_b));
+                DUMP("CS ODT A/B:           %s / %s\n", apob_group_odt_name(mc.cs_odt_a), apob_group_odt_name(mc.cs_odt_b));
+                DUMP("PhyVref:              %s\n", apob_phy_vref_name(mc.phy_vref));
+                DUMP("DRAM VrefDQ/CA/CS:    %s / %s / %s\n",
+                     apob_vref_dq_name(mc.dram_vref_dq), apob_vref_dq_name(mc.dram_vref_ca),
+                     apob_vref_dq_name(mc.dram_vref_cs));
+                DUMP("VDDIO / VDDQ / VDD / VPP:  %d / %d / %d / %d mV\n",
+                     mc.vddio_mv, mc.vddq_mv, mc.vdd_mv, mc.vpp_mv);
+                if (mc.vddio_at != (size_t)-1)
+                    DUMP("  VDDIO from MEM/28 u16 mV @0x%zX (profile MEMCLK %u, CAS %u)\n",
+                         mc.vddio_at, mc.rmp_memclk, mc.rmp_cas);
+            } else {
+                DUMP("mem config: no MEM/25 record for this platform (%s)\n", mc.source);
+            }
         }
     }
 
