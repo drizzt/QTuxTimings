@@ -197,25 +197,187 @@ uint8_t apob_u8(const apob_block_t *b, size_t off)
 }
 
 /*
- * Field offsets come from ZenStates-Core's ApobLayout for this platform
- * (ApobData reads each field through Layout.Offsets, and the encodings render
- * through EncodedValueDictionaries). Until the offset table is filled in per
- * field, everything reports -1 so the UI shows an em dash rather than a
- * plausible-looking zero.
+ * The entry walk (ZenStates-Core ApobCoreMap.EnumerateEntries / WalkChain,
+ * :207-252, and Apob.GetConfigOffsets, :453-474).
+ *
+ * Each entry is a 48-byte header — u32 group, u32 type, u32 instance, u32
+ * size covering the header, then a 32-byte HMAC — and the table is a linked
+ * list: the next entry is at off += size, with no alignment padding. The
+ * chain starts at header_size; the config list of u32 entry offsets at 0x30
+ * (up to header_size − 32, where the trailing hash begins) seeds extra
+ * chains, because some groups are not reachable from the first one. A chain
+ * stops at the first entry whose size is unusable, and at a repeat; group and
+ * type are the low 16 bits, the high half 0xFFFF marking an entry whose data
+ * is obfuscated. The list is sorted by offset, so "first match" is table
+ * order.
+ */
+static void walk_chain(const apob_block_t *b, size_t off, apob_entry_list_t *el)
+{
+    for (unsigned n = 0; n < APOB_MAX_ENTRIES; n++) {
+        if (off == 0 || off + 16 > b->table_size) break;
+
+        bool seen = false;
+        for (size_t i = 0; i < el->count; i++)
+            if (el->v[i].off == off) { seen = true; break; }
+        if (seen) break;
+
+        uint32_t size = apob_u32(b, off + 12);
+        if (size < 16 || off + size > b->table_size) break;
+
+        if (el->count == APOB_MAX_ENTRIES) break;
+        apob_entry_t *e = &el->v[el->count++];
+        e->raw_group   = apob_u32(b, off + 0);
+        e->raw_type    = apob_u32(b, off + 4);
+        e->group       = e->raw_group & 0xFFFFu;
+        e->type        = e->raw_type & 0xFFFFu;
+        e->instance    = apob_u32(b, off + 8);
+        e->size        = size;
+        e->off         = off;
+        e->encrypted   = (e->raw_group >> 16) == 0xFFFFu || (e->raw_type >> 16) == 0xFFFFu;
+        off += size;
+    }
+}
+
+static int by_offset(const void *a, const void *b)
+{
+    const apob_entry_t *x = a, *y = b;
+    return (x->off > y->off) - (x->off < y->off);
+}
+
+size_t apob_walk_entries(const apob_block_t *b, apob_entry_list_t *el)
+{
+    el->count = 0;
+    if (!b->found || !b->data || b->header_size < APOB_CFG_LIST + 4) return 0;
+
+    walk_chain(b, b->header_size, el);
+
+    /* Config list: 0x30 .. header_size−32, the 32-byte hash sits at the end. */
+    size_t region = (b->header_size > APOB_CFG_LIST + APOB_HDR_HASH)
+                  ? b->header_size - APOB_CFG_LIST - APOB_HDR_HASH : 0;
+    for (size_t o = 0; o + 4 <= region; o += 4) {
+        uint32_t target = apob_u32(b, APOB_CFG_LIST + o);
+        if (target && (size_t)target + APOB_ENTRY_OFF + 4 < b->table_size)
+            walk_chain(b, target, el);
+    }
+
+    qsort(el->v, el->count, sizeof(el->v[0]), by_offset);
+    return el->count;
+}
+
+const apob_entry_t *apob_find_entry(const apob_entry_list_t *el, uint32_t group, uint32_t type)
+{
+    for (size_t i = 0; i < el->count; i++)
+        if (!el->v[i].encrypted && el->v[i].group == group && el->v[i].type == type)
+            return &el->v[i];
+    return NULL;
+}
+
+/*
+ * Zen 5's GEN/3 entry holds a timing block per channel, u16 fields: data rate
+ * at +0, MEMCLK at +2, half-MEMCLK at +4, CL at +8. The block is found the way
+ * ApobChannelTimings.Read finds it (:342-450): 2-byte granularity, rate = 2 ×
+ * MEMCLK, MEMCLK 800..7000, half-MEMCLK consistent, CL 10..100. This returns
+ * the first block, i.e. channel 0, P-state 0 — the block the extended ODT
+ * record hangs off.
+ */
+bool apob_timing_block(const apob_block_t *b, size_t entry_off, size_t entry_end, size_t *rel_out)
+{
+    size_t data = entry_off + APOB_ENTRY_HDR;
+    for (size_t o = data; o + APOB_ZS5_TIMING_SPAN <= entry_end; o += 2) {
+        uint32_t rate = apob_u16(b, o + 0x00);
+        uint32_t clk  = apob_u16(b, o + 0x02);
+        uint32_t half = apob_u16(b, o + 0x04);
+        uint32_t cl   = apob_u16(b, o + 0x08);
+        if (clk < 800 || clk > 7000) continue;
+        if (rate != 2u * clk) continue;
+        if (half * 2u != clk - (clk & 1u)) continue;
+        if (cl < 10 || cl > 100) continue;
+        *rel_out = o;                       /* table-relative, channel 0 / P-state 0 */
+        return true;
+    }
+    return false;
+}
+
+/*
+ * Encodings are the ones ZenStates-Core renders through EncodedValues /
+ * EncodedValueDictionaries:
+ *   GroupOdtImpedanceDict  code 0..7 → Off/480/240/120/80/60/48/40 Ω
+ *   PhyVref                % of VDDQ = code · 100 / 128
+ *   DramVref (MR10/11/12)  % of VDDQ = 97.5 − 0.5 · code, codes ≤ 0x7D
+ *                            (LPDDR5 is 10 + 0.5 · code, codes ≤ 0x7F)
  */
 const char *apob_vref_dq_name(int code)
 {
-    /* MR10 VrefDQ: 8-bit code, 35.0 % to 97.5 % of VDDQ in 0.5 % steps. */
+    /* DDR5 MR10 VrefDQ: 97.5 % of VDDQ down to 58.5 % in 0.5 % steps. */
     static char buf[32];
     if (code < 0) return "—";
     if (code > 125) return "?";
-    snprintf(buf, sizeof(buf), "%.1f %% VDDQ", 35.0 + 0.5 * (double)code);
+    snprintf(buf, sizeof(buf), "%.1f %% VDDQ", 97.5 - 0.5 * (double)code);
     return buf;
+}
+
+const char *apob_phy_vref_name(int code)
+{
+    /* The PHY receiver threshold: VDDQ · code / 128, a 128-step ladder — a
+     * different encoder from the DRAM MR10/11/12 Vrefs. */
+    static char buf[32];
+    if (code < 0) return "—";
+    snprintf(buf, sizeof(buf), "%.1f %% VDDQ", (double)code * 100.0 / 128.0);
+    return buf;
+}
+
+/* ── Zen 5 desktop (Granite Ridge) record map ─────────────────────────────
+ * From ZenStates-Core ApobLayout.cs: Zen5MainOffsets (:319) and
+ * Zen5ExtendedOffsets (:354), both read as 0x30-byte records (Zen5MainLayout
+ * / Zen5ExtendedLayout, :452-453). Main = MEM group type 25, one record per
+ * channel; extended = GEN group type 3, at +0x41F from the channel's timing
+ * block (Zen5ChannelTimingLayout, :474). Every field is one unsigned byte.
+ * -1 = the desktop layout does not place that field.
+ */
+#define REC_GDM          0x01   /* decoded by no one in ZenStates-Core   */
+#define REC_RTT_NOM_RD   0x02
+#define REC_CK_ODT_A     0x08
+#define REC_CS_ODT_A     0x09
+#define REC_CA_ODT_A     0x0A
+#define REC_CK_ODT_B     0x0B
+#define REC_CS_ODT_B     0x0C
+#define REC_CA_ODT_B     0x0D
+#define REC_PHY_VREF     0x14
+#define REC_DRAM_VREF_DQ 0x15
+#define REC_DRAM_VREF_CA 0x16
+#define REC_DRAM_VREF_CS 0x17
+#define REC_SIZE         0x30
+
+/* The record is "used" when the RTT block (RttNomRd..RttParkDqs) is not all
+ * zero — the same test Apob.ParseDataBlocks stops the scan on. */
+static bool record_used(const apob_block_t *b, size_t rec)
+{
+    if (rec + REC_SIZE > b->table_size) return false;
+    for (size_t o = REC_RTT_NOM_RD; o < REC_RTT_NOM_RD + 5; o++)
+        if (apob_u8(b, rec + o)) return true;
+    return false;
+}
+
+static int rec_field(const apob_block_t *b, size_t rec, int off)
+{
+    if (off < 0 || rec == (size_t)-1) return -1;
+    return apob_u8(b, rec + (size_t)off);
+}
+
+/* main wins, extended fills the holes — ZenTimings' ApobDataView merge. */
+static int pick(const apob_block_t *b, size_t main, size_t ext, int off)
+{
+    int v = rec_field(b, main, off);
+    if (v < 0) v = rec_field(b, ext, off);
+    return v;
 }
 
 bool apob_read_mem_config(apob_mem_config_t *out)
 {
     apob_block_t ab;
+    apob_entry_list_t el;
+    const apob_entry_t *e;
+
     memset(out, 0, sizeof(*out));
     out->ca_odt_a = out->ca_odt_b = -1;
     out->ck_odt_a = out->ck_odt_b = -1;
@@ -228,10 +390,82 @@ bool apob_read_mem_config(apob_mem_config_t *out)
         snprintf(out->source, sizeof(out->source), "%s", ab.note);
         return false;
     }
-    snprintf(out->source, sizeof(out->source), "APOB v%u @0x%llX",
-             ab.version, (unsigned long long)ab.address);
+    apob_walk_entries(&ab, &el);
+    out->entry_count = (int)el.count;
 
-    /* Offsets are populated by apob_layout.h once the platform map is wired. */
-    out->valid = false;
-    return false;
+    /* The trained record set: MEM/25, channel 0. */
+    size_t main_rec = (size_t)-1;
+    size_t ext_rec  = (size_t)-1;
+    e = apob_find_entry(&el, APOB_GROUP_MEM, APOB_TYPE_MEM_SYS_CFG);
+    if (e && e->size >= APOB_ENTRY_HDR + REC_SIZE) {
+        size_t data = e->off + APOB_ENTRY_HDR;
+        size_t size = e->size - APOB_ENTRY_HDR;
+        if (size % REC_SIZE == 0 && record_used(&ab, data)) {
+            main_rec = data;
+            out->channels = (int)(size / REC_SIZE);
+            out->main_at = data;
+        }
+    }
+    /* The extended copy, from GEN/3's first channel timing block. */
+    size_t blk = (size_t)-1;
+    e = apob_find_entry(&el, APOB_GROUP_GEN, APOB_TYPE_GEN_CFG);
+    if (e && apob_timing_block(&ab, e->off, e->off + e->size, &blk)) {
+        size_t cand = blk + APOB_ZS5_EXT_OFF;
+        if (record_used(&ab, cand)) { ext_rec = cand; out->ext_at = cand; }
+    }
+
+    if (main_rec != (size_t)-1 || ext_rec != (size_t)-1) {
+        out->ck_odt_a = pick(&ab, main_rec, ext_rec, REC_CK_ODT_A);
+        out->cs_odt_a = pick(&ab, main_rec, ext_rec, REC_CS_ODT_A);
+        out->ca_odt_a = pick(&ab, main_rec, ext_rec, REC_CA_ODT_A);
+        out->ck_odt_b = pick(&ab, main_rec, ext_rec, REC_CK_ODT_B);
+        out->cs_odt_b = pick(&ab, main_rec, ext_rec, REC_CS_ODT_B);
+        out->ca_odt_b = pick(&ab, main_rec, ext_rec, REC_CA_ODT_B);
+        out->phy_vref      = pick(&ab, main_rec, ext_rec, REC_PHY_VREF);
+        out->dram_vref_dq  = pick(&ab, main_rec, ext_rec, REC_DRAM_VREF_DQ);
+        out->dram_vref_ca  = pick(&ab, main_rec, ext_rec, REC_DRAM_VREF_CA);
+        out->dram_vref_cs  = pick(&ab, main_rec, ext_rec, REC_DRAM_VREF_CS);
+        out->valid = true;
+    }
+
+    /* The programmed rails. MEM/28 (the RMP / active memory profile) is a
+     * u16-per-field record: flags 0/2/4, MEMCLK 6, VDD 8, CAS 10 — all mV /
+     * MHz / clocks. ZenStates-Core names the +8 field VddMv; it is the
+     * profile's DRAM rail, the number the BIOS VDDIO_MEM knob tracks. */
+    e = apob_find_entry(&el, APOB_GROUP_MEM, APOB_TYPE_MEM_RMP);
+    if (e && e->size >= APOB_ENTRY_HDR + 12) {
+        size_t data = e->off + APOB_ENTRY_HDR;
+        uint16_t mv = apob_u16(&ab, data + 8);
+        if (mv > 500 && mv < 3000) {
+            out->vddio_mv = mv;
+            out->vddio_at = data + 8;
+            out->rmp_memclk = apob_u16(&ab, data + 6);
+            out->rmp_cas    = apob_u16(&ab, data + 10);
+            out->valid = true;
+        }
+    }
+
+    /* SMBIOS/8: the per-DIMM record the BIOS builds type 17 from. Present
+     * bit 0x80, speed u16 at +4 (MEMCLK on DDR5), voltage u16 mV at +6. */
+    e = apob_find_entry(&el, APOB_GROUP_SMBIOS, APOB_TYPE_SMBIOS_MEM);
+    if (e && e->size >= APOB_ENTRY_HDR + 4) {
+        size_t data = e->off + APOB_ENTRY_HDR;
+        size_t n = apob_u8(&ab, data + 1);
+        if (4 + n * 8 <= e->size - APOB_ENTRY_HDR) {
+            for (size_t i = 0; i < n; i++) {
+                size_t rec = data + 4 + i * 8;
+                if (!(apob_u8(&ab, rec) & 0x80)) continue;
+                uint16_t mv = apob_u16(&ab, rec + 6);
+                if (mv > 500 && mv < 3000) { out->vdd_mv = mv; break; }
+            }
+        }
+    }
+
+    if (out->valid)
+        snprintf(out->source, sizeof(out->source), "APOB v%u ch0/%d %u entries",
+                 ab.version, out->channels > 0 ? out->channels : 0, (unsigned)el.count);
+    else
+        snprintf(out->source, sizeof(out->source), "APOB v%u @0x%llX: no MEM/25 record",
+                 ab.version, (unsigned long long)ab.address);
+    return out->valid;
 }

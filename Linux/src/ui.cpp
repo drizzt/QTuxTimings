@@ -790,7 +790,7 @@ void MainWindow::refresh()
             set_term(lbl_ck_odt_b, apob_group_odt_name(ap->ck_odt_b),  ap->ck_odt_b);
             set_term(lbl_cs_odt_a, apob_group_odt_name(ap->cs_odt_a),  ap->cs_odt_a);
             set_term(lbl_cs_odt_b, apob_group_odt_name(ap->cs_odt_b),  ap->cs_odt_b);
-            set_term(lbl_phy_vref, apob_vref_dq_name(ap->phy_vref),        ap->phy_vref);
+            set_term(lbl_phy_vref, apob_phy_vref_name(ap->phy_vref),       ap->phy_vref);
             set_term(lbl_vref_dq,  apob_vref_dq_name(ap->dram_vref_dq),    ap->dram_vref_dq);
             set_term(lbl_vref_ca,  apob_vref_dq_name(ap->dram_vref_ca),    ap->dram_vref_ca);
             set_term(lbl_vref_cs,  apob_vref_dq_name(ap->dram_vref_cs),    ap->dram_vref_cs);

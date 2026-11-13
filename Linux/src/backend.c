@@ -1389,20 +1389,33 @@ char *backend_read_debug_dump(void)
                 DUMP(" 0x%X", apob_u32(&ab, o));
             DUMP("\n");
 
+            apob_entry_list_t el;
+            apob_walk_entries(&ab, &el);
+            DUMP("entries: %u\n", (unsigned)el.count);
+            for (size_t i = 0; i < el.count; i++)
+                DUMP("  [%2u] @0x%zX %u/%-2u inst %u size %-6u%s\n", (unsigned)i,
+                     el.v[i].off, el.v[i].group, el.v[i].type, el.v[i].instance, el.v[i].size,
+                     el.v[i].encrypted ? " (encrypted)" : "");
+
             apob_mem_config_t mc;
             apob_read_mem_config(&mc);
             if (mc.valid) {
+                DUMP("record set: MEM/25 ch0 @0x%zX (%d ch), GEN/3 ext @0x%zX\n",
+                     mc.main_at, mc.channels, mc.ext_at);
                 DUMP("CA ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ca_odt_a), apob_group_odt_name(mc.ca_odt_b));
                 DUMP("CK ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ck_odt_a), apob_group_odt_name(mc.ck_odt_b));
                 DUMP("CS ODT A/B:           %s / %s\n", apob_group_odt_name(mc.cs_odt_a), apob_group_odt_name(mc.cs_odt_b));
-                DUMP("PhyVref:              %s\n", apob_vref_dq_name(mc.phy_vref));
+                DUMP("PhyVref:              %s\n", apob_phy_vref_name(mc.phy_vref));
                 DUMP("DRAM VrefDQ/CA/CS:    %s / %s / %s\n",
                      apob_vref_dq_name(mc.dram_vref_dq), apob_vref_dq_name(mc.dram_vref_ca),
                      apob_vref_dq_name(mc.dram_vref_cs));
                 DUMP("VDDIO / VDDQ / VDD / VPP:  %d / %d / %d / %d mV\n",
                      mc.vddio_mv, mc.vddq_mv, mc.vdd_mv, mc.vpp_mv);
+                if (mc.vddio_at != (size_t)-1)
+                    DUMP("  VDDIO from MEM/28 u16 mV @0x%zX (profile MEMCLK %u, CAS %u)\n",
+                         mc.vddio_at, mc.rmp_memclk, mc.rmp_cas);
             } else {
-                DUMP("mem config: field offsets not mapped for this platform (%s)\n", mc.source);
+                DUMP("mem config: no MEM/25 record for this platform (%s)\n", mc.source);
             }
         }
     }
