@@ -276,9 +276,26 @@ QWidget *MainWindow::build_ram_tab()
         grid_row(g, r++, "tMRDPDA", &lbl_mrd_pda);
         grid_row(g, r++, "tSTAG", &lbl_stag);
         grid_row(g, r++, "tSTAGsb", &lbl_stag_sb);
-        grid_row(g, r++, "tPHYWRL", &lbl_phy_wrl);
-        grid_row(g, r++, "tPHYRDL", &lbl_phy_rdl);
-        grid_row(g, r++, "tPHYWRD", &lbl_phy_wrd);
+        grid_row(g, r++, "tPHYWRL A/B", &lbl_phy_wrl);
+        grid_row(g, r++, "tPHYRDL A/B", &lbl_phy_rdl);
+        grid_row(g, r++, "tPHYWRD A/B", &lbl_phy_wrd);
+        grid_row(g, r++, "PHY A = B", &lbl_phy_match);
+        grid_row(g, r++, "Refresh", &lbl_refresh_mode);
+        grid_row(g, r++, "Nitro (Rx/Tx/Ctrl)", &lbl_nitro);
+        grid_row(g, r++, "tCCD_L_WR2", &lbl_ccdl_wr2);
+        grid_row(g, r++, "RDPOST", &lbl_rdpost);
+        grid_row(g, r++, "WRPOST", &lbl_wrpost);
+        grid_row(g, r++, "PPD", &lbl_ppd);
+        grid_row(g, r++, "ZQCS interval", &lbl_zqcs);
+        grid_row(g, r++, "OdtsReadInterval", &lbl_odts_ri);
+        grid_row(g, r++, "PwrDownDly", &lbl_pdd);
+        grid_row(g, r++, "STAB", &lbl_stab);
+        grid_row(g, r++, "SRX2SRX", &lbl_srx2srx);
+        grid_row(g, r++, "LpDly / Exit", &lbl_lpdly);
+        grid_row(g, r++, "Rd / Wr BrstGap", &lbl_rd_gap);
+        grid_row(g, r++, "BurstLength", &lbl_burst_len);
+        grid_row(g, r++, "DdrMaxRate", &lbl_max_rate);
+        grid_row(g, r++, "UMC scope", &lbl_umc_scope);
         box->addLayout(g);
         box->addStretch(1);
         mid->addWidget(tert_box, 1);
@@ -298,7 +315,7 @@ QWidget *MainWindow::build_ram_tab()
         grid_row(g, r++, "DRAM DQ DS pd", &lbl_dram_dq_ds_pd);
         grid_row(g, r++, "Proc CS DS", &lbl_proc_cs_ds);
         grid_row(g, r++, "Proc CK DS", &lbl_proc_ck_ds);
-        grid_row(g, r++, "CAD Bus DS", &lbl_cad_bus_ds);
+        grid_row(g, r++, "ProcCaDs", &lbl_cad_bus_ds);
         grid_row(g, r++, "Rtt Nom Wr", &lbl_rtt_nom_wr);
         grid_row(g, r++, "Rtt Nom Rd", &lbl_rtt_nom_rd);
         grid_row(g, r++, "Rtt Wr", &lbl_rtt_wr);
@@ -702,9 +719,27 @@ void MainWindow::refresh()
     set_label_fmt(lbl_mrd_pda, "%u", d->mrd_pda);
     set_label_fmt(lbl_stag, "%u", d->stag);
     set_label_fmt(lbl_stag_sb, "%u", d->stag_sb);
-    set_label_fmt(lbl_phy_wrl, "%u", d->phy_wrl);
-    set_label_fmt(lbl_phy_rdl, "%u", d->phy_rdl);
-    set_label_fmt(lbl_phy_wrd, "%u", d->phy_wrd);
+    set_label_fmt(lbl_phy_wrl, "%u / %u", d->phy_wrl, d->phy_wrl_b);
+    set_label_fmt(lbl_phy_rdl, "%u / %u", d->phy_rdl, d->phy_rdl_b);
+    set_label_fmt(lbl_phy_wrd, "%u / %u", d->phy_wrd, d->phy_wrd_b);
+    set_label_text(lbl_phy_match, d->phy_matched ? "yes" : "no — try ARdPtrInitVal");
+    set_label_text(lbl_refresh_mode, d->refresh_mode[0] ? d->refresh_mode : "—");
+    set_label_fmt(lbl_nitro, "%u/%u/%u", d->nitro_rx, d->nitro_tx, d->nitro_ctrl);
+    set_label_fmt(lbl_ccdl_wr2, "%u", d->ccdl_wr2);
+    set_label_fmt(lbl_rdpost, "%u", d->rdpost);
+    set_label_fmt(lbl_wrpost, "%u", d->wrpost);
+    set_label_fmt(lbl_ppd, "%u", d->ppd);
+    set_label_fmt(lbl_zqcs, "%u", d->zqcs_interval);
+    set_label_fmt(lbl_odts_ri, "%u", d->odts_read_interval);
+    set_label_fmt(lbl_pdd, "%u", d->pwr_down_dly);
+    set_label_fmt(lbl_stab, "%u", d->stab);
+    set_label_fmt(lbl_srx2srx, "%u", d->srx2srx);
+    set_label_fmt(lbl_lpdly, "%u / %u", d->lp_dly, d->lp_exit_dly);
+    set_label_fmt(lbl_rd_gap, "%u / %u", d->rd_brst_gap, d->wr_brst_gap);
+    set_label_fmt(lbl_burst_len, "%u", d->burst_length);
+    set_label_fmt(lbl_max_rate, "%u", d->ddr_max_rate);
+    set_label_fmt(lbl_umc_scope, "%s",
+                  d->umc_mirrors == 3 ? "A,B + mirrors" : d->umc_mirrors ? "A,B + 1 mirror" : "A,B");
 
     /* Termination / drive strength — read from the AOD table the BIOS wrote */
     {

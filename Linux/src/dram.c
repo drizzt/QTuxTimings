@@ -72,6 +72,7 @@ static void read_common_timings(uint32_t offset, dram_timings_t *d)
     if (d->twr == 0) d->twr = d->wtrs;
 
     d->trc_page = bit_slice(reg5021C, 31, 20);
+    d->ppd      = bit_slice(reg5021C, 2, 0);
 
     d->rdrd_scl = bit_slice(reg50220, 29, 24);
     d->rdrd_sc  = bit_slice(reg50220, 19, 16);
@@ -104,6 +105,85 @@ static void read_common_timings(uint32_t offset, dram_timings_t *d)
 
     d->wrpre = bit_slice(reg502A4, 10, 8);
     d->rdpre = bit_slice(reg502A4, 2, 0);
+    d->rdpost = bit_slice(reg502A4, 6, 4);
+    d->wrpost = bit_slice(reg502A4, 14, 12);
+
+    /* ── Controller config, per ZenStates-Core Ddr5Timings.cs ───────── */
+    uint32_t reg5012C = read_smn(offset | 0x5012C);
+    d->fgr = bit_slice(reg5012C, 18, 16);
+    {
+        /* Bank Refresh Mode (M_Ordering): the per-bank bit selects the
+         * same-bank family, FGR picks the granularity. This decides which of
+         * tRFC/tRFC2/tRFCsb the controller actually enforces. */
+        uint32_t per_bank = bit_slice(reg5012C, 1, 1);
+        if (per_bank == 0)
+            snprintf(d->refresh_mode, sizeof(d->refresh_mode), "%s", d->fgr == 0 ? "Normal" : "FGR");
+        else
+            snprintf(d->refresh_mode, sizeof(d->refresh_mode), "%s", d->fgr != 0 ? "Mixed" : "PbOnly");
+    }
+
+    uint32_t reg50284 = read_smn(offset | 0x50284);   /* Nitro / DFI delay modes */
+    d->nitro_ctrl      = reg50284 & 0x3;
+    d->nitro_tx        = (reg50284 >> 4) & 0x3;
+    d->nitro_rx        = (reg50284 >> 8) & 0x3;
+    d->nitro_ctrl_mode = (reg50284 >> 16) & 0x1;
+    d->nitro_tx_mode   = (reg50284 >> 17) & 0x1;
+    d->nitro_rx_mode   = (reg50284 >> 18) & 0x1;
+
+    uint32_t reg5022C = read_smn(offset | 0x5022C);
+    d->zqcs_interval = bit_slice(reg5022C, 29, 20);
+    d->tzqcs         = bit_slice(reg5022C, 7, 0);
+
+    d->odts_read_interval = bit_slice(reg50230, 29, 20);
+
+    uint32_t reg50244 = read_smn(offset | 0x50244);
+    d->pwr_down_dly = bit_slice(reg50244, 19, 8);
+    d->csh          = bit_slice(reg50244, 25, 20);
+
+    uint32_t reg50248 = read_smn(offset | 0x50248);
+    d->stab    = bit_slice(reg50248, 9, 0);
+    d->srx2srx = bit_slice(reg50248, 15, 10);
+
+    uint32_t reg5025C = read_smn(offset | 0x5025C);
+    d->lp_dly      = bit_slice(reg5025C, 5, 0);
+    d->lp_exit_dly = bit_slice(reg5025C, 13, 8);
+
+    uint32_t reg50198 = read_smn(offset | 0x50198);
+    d->rd_brst_gap = bit_slice(reg50198, 7, 3);
+    d->wr_brst_gap = bit_slice(reg50198, 13, 9);
+
+    uint32_t reg50100 = read_smn(offset | 0x50100);
+    d->burst_length = bit_slice(reg50100, 9, 8);
+
+    d->ddr_max_rate = bit_slice(read_smn(offset | 0x50DF0), 7, 0);
+    d->ccdl_wr2     = bit_slice(read_smn(offset | 0x502E0), 5, 0);
+}
+
+/*
+ * Channel B lives at the next UMC instance, SMN base 0x10000 (channel A is 0).
+ * AM5 exposes four UMC instances — 0x0, 0x10000, 0x40000 and 0x50000 all answer
+ * — and on a two-channel board the outer pair mirrors the inner pair, so we
+ * read 0/0x10000 as A/B and just record which of the mirrors are present.
+ */
+static void read_channel_b(dram_timings_t *d)
+{
+    dram_timings_t b;
+    memset(&b, 0, sizeof(b));
+    read_common_timings(0x10000, &b);
+
+    d->phy_rdl_b = b.phy_rdl;
+    d->phy_wrl_b = b.phy_wrl;
+    d->phy_wrd_b = b.phy_wrd;
+    d->rdwr_b    = b.rdwr;
+    d->wrrd_b    = b.wrrd;
+    d->phy_matched = (b.phy_rdl == d->phy_rdl &&
+                      b.phy_wrl == d->phy_wrl &&
+                      b.phy_wrd == d->phy_wrd);
+
+    uint32_t mirrors = 0;
+    if (read_smn(0x40000u | 0x50200) != 0xFFFFFFFFu) mirrors |= 1;
+    if (read_smn(0x50000u | 0x50200) != 0xFFFFFFFFu) mirrors |= 2;
+    d->umc_mirrors = mirrors;
 }
 
 static void read_ddr5_timings(dram_timings_t *d)
@@ -124,6 +204,7 @@ static void read_ddr5_timings(dram_timings_t *d)
     d->power_down_enabled = bit_slice(refresh_reg, 28, 28) == 1;
 
     read_common_timings(offset, d);
+    read_channel_b(d);
 
     /* RFC - DDR5: choose first non-default from 4 registers */
     uint32_t trfc_regs[4];

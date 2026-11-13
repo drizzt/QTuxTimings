@@ -1259,6 +1259,38 @@ char *backend_read_debug_dump(void)
         }
     }
 
+    /* ── Controller config + per-channel PHY ───────────────────────── */
+    DUMP("\n=== UMC Config (channel A) ===\n");
+    {
+        system_summary_t s;
+        backend_read_summary(&s);
+        const dram_timings_t *d = &s.dram;
+        DUMP("Refresh mode:         %s  (FGR field %u)\n", d->refresh_mode, d->fgr);
+        DUMP("Nitro Rx/Tx/Ctrl:     %u/%u/%u  (modes %u/%u/%u)\n",
+             d->nitro_rx, d->nitro_tx, d->nitro_ctrl, d->nitro_rx_mode, d->nitro_tx_mode, d->nitro_ctrl_mode);
+        DUMP("tCCD_L_WR2 raw:       %u\n", d->ccdl_wr2);
+        DUMP("RDPOST/WRPOST:        %u / %u\n", d->rdpost, d->wrpost);
+        DUMP("RDPRE/WRPRE:          %u / %u\n", d->rdpre, d->wrpre);
+        DUMP("PPD:                  %u\n", d->ppd);
+        DUMP("ZQCS interval:        %u  (tZQCS %u)\n", d->zqcs_interval, d->tzqcs);
+        DUMP("OdtsReadInterval:     %u\n", d->odts_read_interval);
+        DUMP("PwrDownDly / CSH:     %u / %u\n", d->pwr_down_dly, d->csh);
+        DUMP("STAB / SRX2SRX:       %u / %u\n", d->stab, d->srx2srx);
+        DUMP("LpDly / LpExitDly:    %u / %u\n", d->lp_dly, d->lp_exit_dly);
+        DUMP("Rd/Wr BrstGap:        %u / %u\n", d->rd_brst_gap, d->wr_brst_gap);
+        DUMP("BurstLength code:     %u\n", d->burst_length);
+        DUMP("DdrMaxRate:           %u\n", d->ddr_max_rate);
+        DUMP("UMC mirrors:          0x%X\n", d->umc_mirrors);
+
+        DUMP("\n=== Channel A vs B (UMC0 vs UMC1) ===\n");
+        DUMP("%-16s %-10s %-10s %s\n", "row", "A", "B", "match");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYRDL", d->phy_rdl, d->phy_rdl_b, d->phy_rdl == d->phy_rdl_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYWRL", d->phy_wrl, d->phy_wrl_b, d->phy_wrl == d->phy_wrl_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tPHYWRD", d->phy_wrd, d->phy_wrd_b, d->phy_wrd == d->phy_wrd_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tRDWR",   d->rdwr,    d->rdwr_b,    d->rdwr == d->rdwr_b ? "yes" : "NO");
+        DUMP("%-16s %-10u %-10u %s\n", "tWRRD",   d->wrrd,    d->wrrd_b,    d->wrrd == d->wrrd_b ? "yes" : "NO");
+    }
+
 #undef DUMP
     return buf;
 }

@@ -78,6 +78,15 @@ private:
     QLabel *lbl_rtt_park = nullptr, *lbl_rtt_park_dqs = nullptr;
     QLabel *lbl_term_note = nullptr;
 
+    /* Controller config + per-channel PHY (what the UMC was programmed with) */
+    QLabel *lbl_phy_match = nullptr, *lbl_refresh_mode = nullptr, *lbl_nitro = nullptr;
+    QLabel *lbl_ccdl_wr2 = nullptr, *lbl_rdpost = nullptr, *lbl_wrpost = nullptr, *lbl_ppd = nullptr;
+    QLabel *lbl_zqcs = nullptr, *lbl_odts_ri = nullptr, *lbl_pdd = nullptr;
+    QLabel *lbl_stab = nullptr, *lbl_srx2srx = nullptr;
+    QLabel *lbl_lpdly = nullptr, *lbl_lpexit = nullptr;
+    QLabel *lbl_rd_gap = nullptr, *lbl_wr_gap = nullptr;
+    QLabel *lbl_burst_len = nullptr, *lbl_max_rate = nullptr, *lbl_umc_scope = nullptr;
+
     /* RAM tab — Footer */
     QLabel *lbl_footer_type = nullptr;
 
