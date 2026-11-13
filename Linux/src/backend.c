@@ -1071,6 +1071,14 @@ void backend_read_summary(system_summary_t *out)
     /* DRAM timings */
     dram_read_timings(codename_idx, &out->dram);
 
+    /* AOD carries what the BIOS trained: drive strengths and termination.
+     * Only the Zen5 DDR5 layout (Granite Ridge / Turin) is decoded here. */
+    if (mem_type_for_codename(codename_idx) == MEM_DDR5) {
+        int mclk = (int)(out->dram.frequency_hint_mhz + 0.5f);
+        if (mclk <= 0) mclk = (int)(out->metrics.mclk_mhz + 0.5f);
+        aod_read_resistances(mclk, &out->resistances);
+    }
+
     /* Memory config */
     out->memory.type = mem_type_for_codename(codename_idx);
     float mem_freq = out->dram.frequency_hint_mhz;
@@ -1213,6 +1221,38 @@ char *backend_read_debug_dump(void)
             free(t);
         } else {
             DUMP("(PM table unavailable)\n");
+        }
+    }
+
+    /* ── AOD termination / drive strength (what the BIOS trained) ──── */
+    DUMP("\n=== AOD Termination & Drive Strength ===\n");
+    {
+        system_summary_t s;
+        backend_read_summary(&s);
+        const dram_resistances_t *r = &s.resistances;
+        if (!r->valid) {
+            DUMP("(AOD unavailable: %s)\n", r->source);
+        } else {
+            DUMP("source=%s  anchor=0x%X  MCLK=%d  patch=0x%08X  layout=%s\n",
+                 r->source, (unsigned)r->anchor, r->mclk, (unsigned)r->patch_level,
+                 r->new_layout ? (r->rmp_layout ? "1Ah new (RMP)" : "1Ah new (no RMP)")
+                               : "1Ah legacy");
+            DUMP("%-24s %-16s %s\n", "Field", "Decode", "Raw code");
+            DUMP("%-24s %-16s %s\n", "-----", "------", "--------");
+            DUMP("%-24s %-16s %d\n", "ProcODT (pull-up)",  aod_proc_odt_name(r->proc_odt),      r->proc_odt);
+            DUMP("%-24s %-16s %d\n", "ProcODT (pull-down)",aod_proc_odt_name(r->proc_odt_pd),    r->proc_odt_pd);
+            DUMP("%-24s %-16s %d\n", "Proc DQ drive (up)", aod_proc_odt_name(r->proc_dq_ds),     r->proc_dq_ds);
+            DUMP("%-24s %-16s %d\n", "Proc DQ drive (down)",aod_proc_odt_name(r->proc_dq_ds_pd), r->proc_dq_ds_pd);
+            DUMP("%-24s %-16s %d\n", "DRAM DQ drive (up)", aod_dram_dq_ds_name(r->dram_dq_ds),   r->dram_dq_ds);
+            DUMP("%-24s %-16s %d\n", "DRAM DQ drive (down)",aod_dram_dq_ds_name(r->dram_dq_ds_pd),r->dram_dq_ds_pd);
+            DUMP("%-24s %-16s %d\n", "Proc CS drive",      aod_cad_bus_name(r->proc_cs_ds),      r->proc_cs_ds);
+            DUMP("%-24s %-16s %d\n", "Proc CK drive",      aod_cad_bus_name(r->proc_ck_ds),      r->proc_ck_ds);
+            DUMP("%-24s %-16s %d\n", "CAD bus / CA drive", aod_cad_bus_name(r->cad_bus_ds),      r->cad_bus_ds);
+            DUMP("%-24s %-16s %d\n", "Rtt Nom Wr",         aod_rtt_name(r->rtt_nom_wr),          r->rtt_nom_wr);
+            DUMP("%-24s %-16s %d\n", "Rtt Nom Rd",         aod_rtt_name(r->rtt_nom_rd),          r->rtt_nom_rd);
+            DUMP("%-24s %-16s %d\n", "Rtt Wr",             aod_rtt_name(r->rtt_wr),              r->rtt_wr);
+            DUMP("%-24s %-16s %d\n", "Rtt Park",           aod_rtt_name(r->rtt_park),            r->rtt_park);
+            DUMP("%-24s %-16s %d\n", "Rtt Park Dqs",       aod_rtt_name(r->rtt_park_dqs),        r->rtt_park_dqs);
         }
     }
 

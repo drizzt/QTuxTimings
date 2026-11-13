@@ -283,11 +283,36 @@ QWidget *MainWindow::build_ram_tab()
         box->addStretch(1);
         mid->addWidget(tert_box, 1);
     }
+    /* Termination / Drive (AOD) */
+    {
+        QVBoxLayout *box;
+        QFrame *term_box = make_section_box(&box);
+        box->addWidget(make_label("Termination / Drive", "section-title"));
+        QGridLayout *g = new_grid(2, 8);
+        int r = 0;
+        grid_row(g, r++, "ProcODT", &lbl_proc_odt);
+        grid_row(g, r++, "ProcODT pd", &lbl_proc_odt_pd);
+        grid_row(g, r++, "Proc DQ DS", &lbl_proc_dq_ds);
+        grid_row(g, r++, "Proc DQ DS pd", &lbl_proc_dq_ds_pd);
+        grid_row(g, r++, "DRAM DQ DS", &lbl_dram_dq_ds);
+        grid_row(g, r++, "DRAM DQ DS pd", &lbl_dram_dq_ds_pd);
+        grid_row(g, r++, "Proc CS DS", &lbl_proc_cs_ds);
+        grid_row(g, r++, "Proc CK DS", &lbl_proc_ck_ds);
+        grid_row(g, r++, "CAD Bus DS", &lbl_cad_bus_ds);
+        grid_row(g, r++, "Rtt Nom Wr", &lbl_rtt_nom_wr);
+        grid_row(g, r++, "Rtt Nom Rd", &lbl_rtt_nom_rd);
+        grid_row(g, r++, "Rtt Wr", &lbl_rtt_wr);
+        grid_row(g, r++, "Rtt Park", &lbl_rtt_park);
+        grid_row(g, r++, "Rtt Park Dqs", &lbl_rtt_park_dqs);
+        box->addLayout(g);
+        box->addStretch(1);
+        mid->addWidget(term_box, 1);
+    }
     vbox->addLayout(mid, 1);
 
     /* Footer */
     QHBoxLayout *footer = new QHBoxLayout();
-    QLabel *footer_text = make_label("DRAM timings & MCLK/UCLK: SMN. Voltages & FCLK: PM table.", "footer-muted");
+    QLabel *footer_text = make_label("DRAM timings & MCLK/UCLK: SMN. Voltages & FCLK: PM table. Termination: AOD.", "footer-muted");
     lbl_footer_type = make_label("DDR5", "value-highlight");
     footer->addWidget(footer_text, 1);
     footer->addWidget(lbl_footer_type);
@@ -547,6 +572,14 @@ void MainWindow::on_module_changed(int index)
 
 /* ── Refresh data → UI ──────────────────────────────────────────────── */
 
+/* Renders an AOD resistance: decoded impedance with the raw AOD code beside it,
+ * so the value can be checked against ZenTimings and typed back into BIOS. */
+static void set_term(QLabel *lbl, const char *decoded, int code)
+{
+    if (code < 0 || !decoded) set_label_text(lbl, "—");
+    else set_label_fmt(lbl, "%s  [%d]", decoded, code);
+}
+
 void MainWindow::refresh()
 {
     setlocale(LC_NUMERIC, "C");
@@ -672,6 +705,25 @@ void MainWindow::refresh()
     set_label_fmt(lbl_phy_wrl, "%u", d->phy_wrl);
     set_label_fmt(lbl_phy_rdl, "%u", d->phy_rdl);
     set_label_fmt(lbl_phy_wrd, "%u", d->phy_wrd);
+
+    /* Termination / drive strength — read from the AOD table the BIOS wrote */
+    {
+        const dram_resistances_t *rz = &s->resistances;
+        set_term(lbl_proc_odt,      aod_proc_odt_name(rz->proc_odt),      rz->proc_odt);
+        set_term(lbl_proc_odt_pd,   aod_proc_odt_name(rz->proc_odt_pd),   rz->proc_odt_pd);
+        set_term(lbl_proc_dq_ds,    aod_proc_odt_name(rz->proc_dq_ds),    rz->proc_dq_ds);
+        set_term(lbl_proc_dq_ds_pd, aod_proc_odt_name(rz->proc_dq_ds_pd), rz->proc_dq_ds_pd);
+        set_term(lbl_dram_dq_ds,    aod_dram_dq_ds_name(rz->dram_dq_ds),  rz->dram_dq_ds);
+        set_term(lbl_dram_dq_ds_pd, aod_dram_dq_ds_name(rz->dram_dq_ds_pd), rz->dram_dq_ds_pd);
+        set_term(lbl_proc_cs_ds,    aod_cad_bus_name(rz->proc_cs_ds),     rz->proc_cs_ds);
+        set_term(lbl_proc_ck_ds,    aod_cad_bus_name(rz->proc_ck_ds),     rz->proc_ck_ds);
+        set_term(lbl_cad_bus_ds,    aod_cad_bus_name(rz->cad_bus_ds),     rz->cad_bus_ds);
+        set_term(lbl_rtt_nom_wr,    aod_rtt_name(rz->rtt_nom_wr),         rz->rtt_nom_wr);
+        set_term(lbl_rtt_nom_rd,    aod_rtt_name(rz->rtt_nom_rd),         rz->rtt_nom_rd);
+        set_term(lbl_rtt_wr,        aod_rtt_name(rz->rtt_wr),             rz->rtt_wr);
+        set_term(lbl_rtt_park,      aod_rtt_name(rz->rtt_park),           rz->rtt_park);
+        set_term(lbl_rtt_park_dqs,  aod_rtt_name(rz->rtt_park_dqs),       rz->rtt_park_dqs);
+    }
 
     /* Footer mem type */
     const char *mem_str = s->memory.type == MEM_DDR5 ? "DDR5" :

@@ -69,6 +69,15 @@ private:
     QLabel *lbl_trc_page = nullptr, *lbl_mod = nullptr, *lbl_mod_pda = nullptr, *lbl_mrd = nullptr, *lbl_mrd_pda = nullptr;
     QLabel *lbl_stag = nullptr, *lbl_stag_sb = nullptr, *lbl_phy_wrl = nullptr, *lbl_phy_rdl = nullptr, *lbl_phy_wrd = nullptr;
 
+    /* Termination / drive strength (AOD, what the BIOS trained) */
+    QLabel *lbl_proc_odt = nullptr, *lbl_proc_odt_pd = nullptr;
+    QLabel *lbl_proc_dq_ds = nullptr, *lbl_proc_dq_ds_pd = nullptr;
+    QLabel *lbl_dram_dq_ds = nullptr, *lbl_dram_dq_ds_pd = nullptr;
+    QLabel *lbl_proc_cs_ds = nullptr, *lbl_proc_ck_ds = nullptr, *lbl_cad_bus_ds = nullptr;
+    QLabel *lbl_rtt_nom_wr = nullptr, *lbl_rtt_nom_rd = nullptr, *lbl_rtt_wr = nullptr;
+    QLabel *lbl_rtt_park = nullptr, *lbl_rtt_park_dqs = nullptr;
+    QLabel *lbl_term_note = nullptr;
+
     /* RAM tab — Footer */
     QLabel *lbl_footer_type = nullptr;
 
