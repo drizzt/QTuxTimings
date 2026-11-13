@@ -79,6 +79,12 @@ private:
     QLabel *lbl_rtt_park = nullptr, *lbl_rtt_park_dqs = nullptr;
     QLabel *lbl_term_note = nullptr;
 
+    /* APOB: per-channel ODT groups and Vrefs (Termination / Drive rows) */
+    QLabel *lbl_ca_odt_a = nullptr, *lbl_ca_odt_b = nullptr;
+    QLabel *lbl_ck_odt_a = nullptr, *lbl_ck_odt_b = nullptr;
+    QLabel *lbl_cs_odt_a = nullptr, *lbl_cs_odt_b = nullptr;
+    QLabel *lbl_phy_vref = nullptr, *lbl_vref_dq = nullptr, *lbl_vref_ca = nullptr, *lbl_vref_cs = nullptr;
+
     /* Controller config + per-channel PHY (what the UMC was programmed with) */
     QLabel *lbl_phy_match = nullptr, *lbl_refresh_mode = nullptr, *lbl_nitro = nullptr;
     QLabel *lbl_bgs = nullptr, *lbl_bgs_alt = nullptr;

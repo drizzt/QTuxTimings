@@ -1105,6 +1105,14 @@ void backend_read_summary(system_summary_t *out)
                    sizeof(out->metrics.cpu_vddio_src));
     }
 
+    /* APOB: the trained per-channel ODT groups, Vrefs and programmed rails.
+     * The block is cached in apob.c, so this is cheap after the first refresh. */
+    apob_read_mem_config(&out->apob);
+    if (out->apob.valid && out->apob.vddio_mv > 500) {
+        out->metrics.cpu_vddio = out->apob.vddio_mv / 1000.0f;
+        snprintf(out->metrics.cpu_vddio_src, sizeof(out->metrics.cpu_vddio_src), "APOB");
+    }
+
     /* hwmon overlays */
     apply_per_core_temps_hwmon(&out->metrics);
     apply_k10temp_tctl_tccd(&out->metrics);
@@ -1380,6 +1388,22 @@ char *backend_read_debug_dump(void)
             for (size_t o = 16; o + 4 <= ab.header_size && o < 16 + 12 * 4; o += 4)
                 DUMP(" 0x%X", apob_u32(&ab, o));
             DUMP("\n");
+
+            apob_mem_config_t mc;
+            apob_read_mem_config(&mc);
+            if (mc.valid) {
+                DUMP("CA ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ca_odt_a), apob_group_odt_name(mc.ca_odt_b));
+                DUMP("CK ODT A/B:           %s / %s\n", apob_group_odt_name(mc.ck_odt_a), apob_group_odt_name(mc.ck_odt_b));
+                DUMP("CS ODT A/B:           %s / %s\n", apob_group_odt_name(mc.cs_odt_a), apob_group_odt_name(mc.cs_odt_b));
+                DUMP("PhyVref:              %s\n", apob_vref_dq_name(mc.phy_vref));
+                DUMP("DRAM VrefDQ/CA/CS:    %s / %s / %s\n",
+                     apob_vref_dq_name(mc.dram_vref_dq), apob_vref_dq_name(mc.dram_vref_ca),
+                     apob_vref_dq_name(mc.dram_vref_cs));
+                DUMP("VDDIO / VDDQ / VDD / VPP:  %d / %d / %d / %d mV\n",
+                     mc.vddio_mv, mc.vddq_mv, mc.vdd_mv, mc.vpp_mv);
+            } else {
+                DUMP("mem config: field offsets not mapped for this platform (%s)\n", mc.source);
+            }
         }
     }
 

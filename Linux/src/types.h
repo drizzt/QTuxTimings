@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "aod.h"
+#include "apob.h"
 
 #define MAX_CORES       16
 #define MAX_MODULES     4
@@ -150,6 +151,7 @@ typedef struct {
     smu_metrics_t metrics;
     dram_timings_t dram;
     dram_resistances_t resistances;
+    apob_mem_config_t apob;
     fan_reading_t fans[MAX_FANS];
     int fan_count;
 } system_summary_t;

@@ -1,6 +1,10 @@
 #ifndef APOB_H
 #define APOB_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -45,5 +49,36 @@ uint8_t  apob_u8(const apob_block_t *b, size_t off);
 /* Top of the highest System RAM range below 4 GiB, from /proc/iomem.
  * Returns 0 if unavailable (caller falls back to scanning the whole 4 GiB). */
 uint64_t apob_low_ram_top(void);
+
+/*
+ * The trained memory-configuration fields a tuner cares about. Values are raw
+ * APOB codes; the renderer turns them into ohms / percent / millivolts, the
+ * same split ZenStates-Core uses between ApobData and EncodedValues. -1 means
+ * "not present in this APOB version".
+ */
+typedef struct {
+    bool valid;
+    int ca_odt_a, ca_odt_b;     /* Group ODT, MR32/MR33 Group A / B  */
+    int ck_odt_a, ck_odt_b;
+    int cs_odt_a, cs_odt_b;
+    int phy_vref;               /* PHY read reference, % of VDDQ      */
+    int dram_vref_dq;           /* MR10 code, % of VDDQ               */
+    int dram_vref_ca;           /* MR11 code, % of VCC              */
+    int dram_vref_cs;           /* MR12 code                        */
+    int vddio_mv;               /* programmed VDDIO_MEM, millivolts   */
+    int vddq_mv, vdd_mv, vpp_mv;
+    size_t vddio_at;            /* offset the VDDIO value was read at */
+    char source[64];
+} apob_mem_config_t;
+
+/* Code -> ZenTimings' vocabulary (GroupOdtImpedanceDict / MR10 VrefDQ). */
+const char *apob_group_odt_name(int code);
+const char *apob_vref_dq_name(int code);    /* "% of VDDQ", MR10 0.5 % steps */
+
+bool apob_read_mem_config(apob_mem_config_t *out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* APOB_H */

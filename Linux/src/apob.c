@@ -172,8 +172,66 @@ uint16_t apob_u16(const apob_block_t *b, size_t off)
     return v;
 }
 
+const char *apob_group_odt_name(int code)
+{
+    /* GroupOdtImpedanceDict: the CA/CK/CS command-bus terminators. Note the
+     * 480 ohm rung that the DQ ladder does not have, and no 48 ohm rung. */
+    switch (code) {
+    case 0:  return "Off";
+    case 1:  return "480.0 Ω";
+    case 2:  return "240.0 Ω";
+    case 3:  return "120.0 Ω";
+    case 4:  return "80.0 Ω";
+    case 5:  return "60.0 Ω";
+    case 6:  return "48.0 Ω";
+    case 7:  return "40.0 Ω";
+    case -1: return "—";
+    default: return "?";
+    }
+}
+
 uint8_t apob_u8(const apob_block_t *b, size_t off)
 {
     if (!b->found || !b->data || off >= b->table_size) return 0;
     return b->data[off];
+}
+
+/*
+ * Field offsets come from ZenStates-Core's ApobLayout for this platform
+ * (ApobData reads each field through Layout.Offsets, and the encodings render
+ * through EncodedValueDictionaries). Until the offset table is filled in per
+ * field, everything reports -1 so the UI shows an em dash rather than a
+ * plausible-looking zero.
+ */
+const char *apob_vref_dq_name(int code)
+{
+    /* MR10 VrefDQ: 8-bit code, 35.0 % to 97.5 % of VDDQ in 0.5 % steps. */
+    static char buf[32];
+    if (code < 0) return "—";
+    if (code > 125) return "?";
+    snprintf(buf, sizeof(buf), "%.1f %% VDDQ", 35.0 + 0.5 * (double)code);
+    return buf;
+}
+
+bool apob_read_mem_config(apob_mem_config_t *out)
+{
+    apob_block_t ab;
+    memset(out, 0, sizeof(*out));
+    out->ca_odt_a = out->ca_odt_b = -1;
+    out->ck_odt_a = out->ck_odt_b = -1;
+    out->cs_odt_a = out->cs_odt_b = -1;
+    out->phy_vref = out->dram_vref_dq = out->dram_vref_ca = out->dram_vref_cs = -1;
+    out->vddio_mv = out->vddq_mv = out->vdd_mv = out->vpp_mv = -1;
+    out->vddio_at = (size_t)-1;
+
+    if (!apob_load(&ab)) {
+        snprintf(out->source, sizeof(out->source), "%s", ab.note);
+        return false;
+    }
+    snprintf(out->source, sizeof(out->source), "APOB v%u @0x%llX",
+             ab.version, (unsigned long long)ab.address);
+
+    /* Offsets are populated by apob_layout.h once the platform map is wired. */
+    out->valid = false;
+    return false;
 }
