@@ -61,6 +61,7 @@ typedef struct {
     /* Voltages */
     float vcore, vsoc, vddp, vddg_ccd, vddg_iod, vdd_misc;
     float cpu_vddio, mem_vdd, mem_vddq, mem_vpp;
+    char cpu_vddio_src[24];   /* which source produced cpu_vddio (Super-IO / AOD …) */
     float vid;
     /* Clocks */
     float core_clock_mhz, bclk_mhz; /* reserved */

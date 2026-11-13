@@ -672,7 +672,13 @@ void MainWindow::refresh()
     SET_VOLT(lbl_vdd_misc, m->vdd_misc);
     SET_VOLT(lbl_mem_vdd,  m->mem_vdd);
     SET_VOLT(lbl_mem_vddq, m->mem_vddq);
-    SET_VOLT(lbl_cpu_vddio, m->cpu_vddio);
+    /* CPU VDDIO carries its source: on desktop AM5 the Super-IO channel is
+     * often unlabeled, and the value shown is then the AOD programmed rail. */
+    if (m->cpu_vddio > 0)
+        set_label_fmt(lbl_cpu_vddio, "%.4fV  (%s)", (double)m->cpu_vddio,
+                      m->cpu_vddio_src[0] ? m->cpu_vddio_src : "AOD");
+    else
+        set_label_text(lbl_cpu_vddio, "—");
     SET_VOLT(lbl_mem_vpp,  m->mem_vpp);
     SET_VOLT(lbl_vcore,    m->vcore);
     set_label_fmt(lbl_ppt, "%.1fW", m->ppt_w);

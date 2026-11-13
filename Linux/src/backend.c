@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <math.h>
+#include <glob.h>
+#include <strings.h>
 
 #define SMU_PATH "/sys/kernel/ryzen_smu_drv"
 
@@ -409,8 +411,51 @@ static void read_agesa_version(void)
     }
 }
 
-/* ── Total memory from /proc/meminfo ────────────────────────────────── */
+/* ZenTimings resolves CPU VDDIO by Super-IO sensor *name*, not by channel
+ * index — the channel numbering differs per board. Same name list, same order
+ * (WPF/ViewModels/MainViewModel.cs ApuVddioSensorNames). Returns mV, 0 if none. */
+static int hwmon_vddio_mv(void)
+{
+    static const char *names[] = { "CPU VDDIO", "VDIMM", "VDDIO", "CPU VDDIO Memory", "VDDIO_MEM" };
+    glob_t g;
+    int mv = 0;
+    if (glob("/sys/class/hwmon/hwmon*/in*_label", 0, NULL, &g) == 0) {
+        for (size_t i = 0; i < g.gl_pathc && !mv; i++) {
+            char lab[64];
+            if (!read_file_string(g.gl_pathv[i], lab, sizeof(lab))) continue;
+            for (size_t k = 0; k < sizeof(names) / sizeof(*names); k++) {
+                if (strcasecmp(lab, names[k]) != 0) continue;
+                char inp[512];
+                snprintf(inp, sizeof(inp), "%s_input", g.gl_pathv[i]);
+                int v = read_int_file(inp);
+                if (v > 500 && v < 3000) { mv = v; break; }
+            }
+        }
+        globfree(&g);
+    }
+    return mv;
+}
 
+/* 1) Super-IO sensor (what ZenTimings shows on Windows), 2) AOD ApuVddio
+ * (the APU rail; 0 on desktop parts), 3) AOD MemVddio, so the row is never a
+ * bare dash. The source string says which one produced the number. */
+static void read_vddio(smu_metrics_t *m, char *src, size_t sz)
+{
+    int mv = hwmon_vddio_mv();
+    if (mv) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "Super-IO"); return; }
+
+    mv = read_int_file("/sys/kernel/aod_voltages/cpu_vddio");
+    if (mv > 500 && mv < 3000) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "AOD"); return; }
+
+    mv = read_int_file("/sys/kernel/aod_voltages/mem_vddio");
+    if (mv > 500 && mv < 3000) { m->cpu_vddio = mv / 1000.0f; snprintf(src, sz, "AOD MemVddio"); return; }
+
+    m->cpu_vddio = 0.0f;
+    snprintf(src, sz, "—");
+}
+
+
+/* ── Total memory from /proc/meminfo ────────────────────────────────── */
 static void read_total_memory(char *buf, size_t sz)
 {
     FILE *f = fopen("/proc/meminfo", "r");
@@ -1055,8 +1100,8 @@ void backend_read_summary(system_summary_t *out)
         if (mv > 500 && mv < 3000) out->metrics.mem_vddq   = mv / 1000.0f;
         mv = read_int_file("/sys/kernel/aod_voltages/mem_vpp");
         if (mv > 500 && mv < 3000) out->metrics.mem_vpp    = mv / 1000.0f;
-        mv = read_int_file("/sys/kernel/aod_voltages/cpu_vddio");
-        if (mv > 500 && mv < 3000) out->metrics.cpu_vddio  = mv / 1000.0f;
+        read_vddio(&out->metrics, out->metrics.cpu_vddio_src,
+                   sizeof(out->metrics.cpu_vddio_src));
     }
 
     /* hwmon overlays */
@@ -1291,6 +1336,8 @@ char *backend_read_debug_dump(void)
         system_summary_t s;
         backend_read_summary(&s);
         const dram_timings_t *d = &s.dram;
+        DUMP("CPU VDDIO:            %.4f V  (source: %s)\n", (double)s.metrics.cpu_vddio,
+             s.metrics.cpu_vddio_src[0] ? s.metrics.cpu_vddio_src : "none");
         DUMP("Refresh mode:         %s  (FGR field %u)\n", d->refresh_mode, d->fgr);
         DUMP("BGS:                  %s  (0x%08X)\n", d->bgs_enabled ? "Enabled" : "Disabled", d->bgs_raw);
         DUMP("BGS Alt:              %s  (0x%08X)\n", d->bgs_alt_enabled ? "Enabled" : "Disabled", d->bgs_alt_raw);
